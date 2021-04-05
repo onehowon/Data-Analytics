@@ -1,0 +1,200 @@
+---
+title: "202021524_성원호_국가고시 교차분석"
+author: "성원호"
+date: "3/29/2021"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+# 교차분석
+##(대립)가설: 국가고시 유형 별로 남녀의 합격자 수가 다를 것이다
+## 필요한 데이터를 수집하여, 교차분석을 통해 검증
+## 교차분석 도표 작성
+```{r}
+#(대립)가설 : 국가고시 유형 별로 남녀의 합격자 수가 다를 것이다.
+#install.packages("gmodels")
+library(gmodels)
+#install.packages("sjPlot")
+library(sjPlot)
+library(dplyr)
+glass <- read.csv("한국보건의료인국가시험_안경사.csv",fileEncoding = "CP949", header = T)
+head(glass)
+
+table_glass <- table(glass$합격여부, glass$성별)
+table_glass
+#table 함수를 사용하여 성별에 따른 합격 여부와 참여 유무의 합계를 구해줌
+
+margin.table(table_glass)
+margin.table(table_glass, 1)
+margin.table(table_glass, 2)
+#margin.table 함수를 사용하여 교차표의 주변합계를 계산해줌
+#1 입력시 합격, 참여 컬럼을 기준으로 합계를 산출
+#2 입력시 성별 기준으로 합계를 산출
+
+round(prop.table(table_glass)*100, 2) #셀의 비율을 산출함
+round(prop.table(table_glass,2)*100, 2) #ㅎ열의 비율을 산출함
+round(margin.table(prop.table(table_glass), 1)*100, 2) #행의 주변합계 비율 산출
+#round 함수를 사용해 소수점 두자리 수까지 반올림하며 백분율 산출을 위해 비율에 100을 곱해주었음.
+
+chisq.test(table_glass, correct=FALSE)
+#카이제곱 함수를 이용해 교차표에 나타난 성별에 따른 시험 합격 유무 정도를 통계적으로 검증
+#그 결과 X^2값은 526.78이고 유의확률은 2.2e-16이 산출.
+#p-value 값이 0.05보다 낮음을 확인할 수 있다.
+#p-value가 0.05보다 낮으므로 귀무가설이 기각되고 대립가설인 성별에 따른 합격자 수가 다르다는 것이 받아들여진다.
+
+
+CrossTable(glass$성별, glass$합격여부, digits=2,
+           prop.c=TRUE, prop.r=FALSE, prop.t=FALSE, prop.chisq=FALSE,
+           chisq=TRUE)
+#gmodels 패키지에 내장된 CrossTable 함수로 편하게 교차표를 만들 수 있다.
+#x^2 = 526.785, p-value = 0.000 이므로 0.05보다 낮음을 알 수 있음.
+sjt.xtab(glass$성별, glass$합격여부, show.col.prc = T,
+         show.exp = T, var.labels = c("성별","합격여부"),
+         value.labels = list(c("남자","여자"),
+                             c("합격","불합격")),
+         encoding="UTF-8")
+#sjPlot 패키지를 활용한 교차분석으로 Viewer에 직접 출력해보았다.
+
+sjt.xtab(glass$성별, glass$합격여부, show.col.prc = T,
+         show.exp = T, var.labels = c("성별","합격여부"),
+         value.labels = list(c("남자","여자"),
+                             c("합격","불합격")),
+         file = "/Users/seong-wonho/Documents/glass_data.html")
+browseURL("chisquare_table.html")
+#이후 html 확장자로 저장
+# x^2 값은 526.785, p-value = 0.000 < 0.05라는 점을 알 수 있었음.
+
+set_theme(geom.label.size = 4.5, axis.textsize = 1.1,
+          legend.pos="bottom",
+          theme.font = 'AppleGothic') #set_theme 함수를 활용해 도표 형성
+plot_xtab(glass$성별, glass$합격여부, type="bar", #막대바 형태
+          y.offset = 0.01,
+          margin = "col", coord.flip = T, wrap.labels = 7,
+          geom.colors = "Set2", show.summary = T, show.total = F,
+          axis.titles = "합격여부",
+          axis.labels = c("합격", "불합격"),
+          legend.title = "성별",
+          legend.labels = c("남자","여자"))
+
+physic <- read.csv("한국보건의료인국가시험원_응시.csv",fileEncoding = "CP949", header = T)
+
+physic <- physic[-1, ]
+#컬럼 내 오류가 있어 삭제 처리하였음.
+
+table_physic <- table(physic$합격여부, physic$성별)
+table_physic
+#table 함수를 사용하여 성별에 따른 합격 여부와 참여 유무의 합계를 구해줌
+
+margin.table(table_physic)
+margin.table(table_physic, 1)
+margin.table(table_physic, 2)
+#margin.table 함수를 사용하여 교차표의 주변합계를 계산해줌
+#1 입력시 합격, 참여 컬럼을 기준으로 합계를 산출
+#2 입력시 성별 기준으로 합계를 산출
+
+round(prop.table(table_physic)*100, 2) #셀의 비율을 산출함
+round(prop.table(table_physic,2)*100, 2) #열의 비율을 산출함
+round(margin.table(prop.table(table_physic), 1)*100, 2) #행의 주변합계 비율 산출
+#round 함수를 사용해 소수점 두자리 수까지 반올림하며 백분율 산출을 위해 비율에 100을 곱해주었음.
+
+chisq.test(table_physic, correct=FALSE)
+#카이제곱 함수를 이용해 교차표에 나타난 성별에 따른 시험 합격 유무 정도를 통계적으로 검증
+#그 결과 X^2값은 120.76이고 유의확률은 2.2e-16이 산출.
+#p-value 값이 0.05보다 낮음을 확인할 수 있다.
+#p-value가 0.05보다 낮으므로 귀무가설이 기각되고 대립가설인 성별에 따른 합격자 수가 다르다는 것이 받아들여진다.
+
+
+CrossTable(physic$성별, physic$합격여부, digits=2,
+           prop.c=TRUE, prop.r=FALSE, prop.t=FALSE, prop.chisq=FALSE,
+           chisq=TRUE)
+#gmodels 패키지에 내장된 CrossTable 함수로 편하게 교차표를 만들 수 있다.
+#x^2 = 127.174, p-value = 5.056225e-25 이므로 0.05보다 낮음을 알 수 있음.
+sjt.xtab(physic$성별, physic$합격여부, show.col.prc = T,
+         show.exp = T, var.labels = c("성별","합격여부"),
+         value.labels = list(c("남자","여자"),
+                             c("합격","불합격")),
+         encoding="UTF-8")
+#sjPlot 패키지를 활용한 교차분석으로 Viewer에 직접 출력해보았다.
+
+sjt.xtab(physic$성별, physic$합격여부, show.col.prc = T,
+         show.exp = T, var.labels = c("성별","합격여부"),
+         value.labels = list(c("남자","여자"),
+                             c("합격","불합격")),
+         file = "/Users/seong-wonho/Documents/glass_data.html")
+browseURL("chisquare_table.html")
+#이후 html 확장자로 저장
+# x^2 값은 127.174, p-value = 0.000 < 0.05라는 점을 알 수 있었음.
+
+set_theme(geom.label.size = 4.5, axis.textsize = 1.1,
+          legend.pos="bottom",
+          theme.font = 'AppleGothic') #set_theme 함수를 활용해 도표 형성
+plot_xtab(physic$성별, physic$합격여부, type="bar", #막대바 형태
+          y.offset = 0.01,
+          margin = "col", coord.flip = T, wrap.labels = 7,
+          geom.colors = "Set2", show.summary = T, show.total = F,
+          axis.titles = "합격여부",
+          axis.labels = c("합격", "불합격"),
+          legend.title = "성별",
+          legend.labels = c("남자","여자"))
+
+test_table <- rbind(physic, glass)
+head(test_table)
+#유형별 합격자수 산출을 위해서는 2개 이상의 유형이 필요하므로 안경사와 물리치료사 데이터프레임을 결합함.
+
+test_cal <- table(test_table$직종, test_table$합격여부)
+test_cal
+#table 함수를 통해 직종에 따른 합격 여부의 합계를 구해줌
+
+margin.table(test_cal)
+margin.table(test_cal, 1)
+margin.table(test_cal, 2)
+#margin.table 함수를 사용하여 교차표의 주변합계를 계산해줌
+#1 입력시 합격 컬럼을 기준으로 합계를 산출
+#2 입력시 직종 기준으로 합계를 산출
+
+round(prop.table(test_cal)*100, 2) #셀의 비율을 산출함
+round(prop.table(test_cal,2)*100, 2) #열의 비율을 산출함
+round(margin.table(prop.table(test_cal), 1)*100, 2) #행의 주변합계 비율 산출
+#round 함수를 사용해 소수점 두자리 수까지 반올림하며 백분율 산출을 위해 비율에 100을 곱해주었음.
+
+chisq.test(test_cal, correct=FALSE)
+#카이제곱 함수를 이용해 교차표에 나타난 직종에 따른 시험 합격 유무 정도를 통계적으로 검증
+#그 결과 X^2값은 8140.3이고 유의확률은 2.2e-16이 산출.
+#p-value 값이 0.05보다 낮음을 확인할 수 있다.
+
+
+CrossTable(test_table$직종, test_table$합격여부, digits=2,
+           prop.c=TRUE, prop.r=FALSE, prop.t=FALSE, prop.chisq=FALSE,
+           chisq=TRUE)
+#gmodels 패키지에 내장된 CrossTable 함수로 편하게 교차표를 만들 수 있다.
+#x^2 = 8140.318, p-value = 0.000 이므로 0.05보다 낮음을 알 수 있음.
+#p-value가 0.05보다 낮으므로 귀무가설이 기각되고 대립가설인 국가고시 유형 별로 합격자 수가 다르다는 것이 받아들여진다.
+sjt.xtab(test_table$직종, test_table$합격여부, show.col.prc = T,
+         show.exp = T, var.labels = c("직종","합격여부"),
+         value.labels = list(c("물리치료사","안경사"),
+                             c("합격","불합격")),
+         encoding="UTF-8")
+#sjPlot 패키지를 활용한 교차분석으로 Viewer에 직접 출력해보았다.
+
+sjt.xtab(test_table$직종, test_table$합격여부, show.col.prc = T,
+         show.exp = T, var.labels = c("직종","합격여부"),
+         value.labels = list(c("물리치료사","안경사"),
+                             c("합격","불합격")),
+         file = "/Users/seong-wonho/Documents/table_data.html")
+browseURL("chisquare_table.html")
+#이후 html 확장자로 저장
+# x^2 값은 526.785, p-value = 0.000 < 0.05라는 점을 알 수 있었음.
+
+set_theme(geom.label.size = 4.5, axis.textsize = 1.1,
+          legend.pos="bottom",
+          theme.font = 'AppleGothic') #set_theme 함수를 활용해 도표 형성
+plot_xtab(test_table$직종, test_table$합격여부, type="bar", #막대바 형태
+          y.offset = 0.01,
+          margin = "col", coord.flip = T, wrap.labels = 7,
+          geom.colors = "Set2", show.summary = T, show.total = F,
+          axis.titles = "합격여부",
+          axis.labels = c("합격", "불합격"),
+          legend.title = "직종",
+          legend.labels = c("물리치료사","안경사"))
+```
