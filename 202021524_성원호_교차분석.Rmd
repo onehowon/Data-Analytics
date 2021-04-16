@@ -33,7 +33,7 @@ margin.table(table_glass, 2)
 #2 입력시 성별 기준으로 합계를 산출
 
 round(prop.table(table_glass)*100, 2) #셀의 비율을 산출함
-round(prop.table(table_glass,2)*100, 2) #ㅎ열의 비율을 산출함
+round(prop.table(table_glass,2)*100, 2) #열의 비율을 산출함
 round(margin.table(prop.table(table_glass), 1)*100, 2) #행의 주변합계 비율 산출
 #round 함수를 사용해 소수점 두자리 수까지 반올림하며 백분율 산출을 위해 비율에 100을 곱해주었음.
 
