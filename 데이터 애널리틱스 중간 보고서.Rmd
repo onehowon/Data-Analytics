@@ -1,0 +1,760 @@
+---
+title: "데이터 애널리틱스 중간 보고서 1조"
+author: "성원호, 박유선, 허정민"
+date: '2021-4-15'
+output: html_document
+---
+
+# 날씨에 따른 배달량의 관계 분석
+## 목차
+1. 주제 선정 배경
+    * 1-1. 주제 선정 이유
+    * 1-2. 대립 가설 설정 (유의수준: 0.05)
+    * 1-3. 가설 설정의 구체화 과정
+2. 데이터 수집 및 전처리
+    * 2-1. 데이터 수집
+    - 출처 KT 통신 Bigdata 플랫폼, 기상청
+    * 2-2. 데이터 전처리
+3. 데이터 분석
+    * 3-1. 기술 통계
+    - 날씨에 따른 배달량 분석
+    - 결과 도식화
+    * 3-2. 추론 통계
+    - 카이스퀘어 테스트
+    - T-test
+    - ANOVA
+4. 결론
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+## 1. 주제 선정 배경
+### 1-1. 주제 선정 이유
+> "조원들 중 한 명이 배달음식을 시켰음에도 불구하고, 눈이나 비 등 날씨가 안좋은 상황으로 인해 배달거부를 경험했다. 이러한 경험을 기반으로 기상 상황으로 인해서 다른 기상 상태에 비해 눈이나 비 등 기상상태가 좋지 않은 경우에 실질 배달량이 적은지에 대해 의문이 생겼다.
+ 또한 배달 수요 및 공급 증가로 인해 배달 시장은 꾸준한 성장세를 보여주고 있으며 배달 데이터가 향후 시장에서 중요한 역할을 할 것이라 생각한다. 따라서 성장하는 배달 시장과 기상상황과 관련된 배달 거부 경험을 가지고, 배달량에 날씨에 밀접한 연관이 있을 것이라 생각하여 해당 주제를 선정하게 됐다." 
+
+### 1-2. 대립 가설 설정
+> "H0 : 배달량과 날씨에는 차이가 없다."  
+  "H1 : 배달량과 날씨에는 차이가 있다."
+  
+### 1-3. 가설 설정의 구체화 과정
+> 날씨에 따라 사람들의 외출 성향, 생활 패턴도 달라질 것이라 생각했기 때문에 배달 음식을 주문하는 빈도도 다를 것이라 생각했다. 때문에 기상청에서 날씨를 규정하는 기준에 따라 맑음, 더움 등의 척도를 설정하고 일일 배달량을 집계하여 분석한다면 가설에 대한 검증이 가능할 것이라 생각했다. 
+
+## 2. 데이터 수집 및 전처리
+### 2-1. 데이터 수집
+
+```{r}
+library(dplyr)
+library(tidyr)
+weather_2019<- read.csv("2019년 날씨.csv", fileEncoding = "CP949", encoding = "UTF-8")
+weather_2020<- read.csv("2020년 날씨.csv", fileEncoding = "CP949", encoding = "UTF-8")
+delivery <- read.csv("delivery.csv", header=F, encoding = "UTF-8")
+```
+
+### 2-2. 데이터 전처리
+```{r}
+# 가독성을 위해 delivery 데이터 내의 컬럼 이름들을 변경
+colnames(delivery) <- c("date","menu","province","dosi","amount")
+head(delivery)
+
+# delivery 데이터에 들어 있는 지역이 광범위하므로 분석 범위를 경기도로 축소하였음.
+# 이후 select 함수를 활용하여 분석에 필요한 province, menu, date 컬럼만 추출한뒤 date 기준으로 정렬
+Sudo_delivery <- delivery %>%
+  filter(province == "경기도" ) %>%
+  select(province, menu, date) %>%
+  arrange(date)
+
+head(Sudo_delivery)
+
+# date 컬럼은 날짜형 데이터이므로, as.Date 함수를 통해 날짜형 데이터로 변환해주어야함
+Sudo_delivery$date<- as.Date(Sudo_delivery$date)
+
+# date 컬럼을 기준으로 일일 배달량의 합계를 산출함.
+Sudo_delivery_num <- Sudo_delivery %>%
+  group_by(date) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+
+head(Sudo_delivery_num)
+```
+
+```{r}
+# 2019년과 2020년 데이터 중 분석에 사용할 컬럼만 추출
+weather_2019<- weather_2019[,c(2,3,4,13,20)]
+weather_2020<- weather_2020[,c(2,3,4,13,20)]
+
+# 추출 이후 2019, 2020년도 데이터를 병합
+weather<- bind_rows(weather_2019, weather_2020)
+
+# 가독성을 높이기 위해 컬럼의 이름들을 변경하였음
+colnames(weather) <- c("date","avg_temp","min_temp","precipitation", "wind_speed")
+
+# 결측값 제거
+weather[is.na(weather)]<- 0
+
+# 평균온도와 강수량을 기준으로 수치화 된 날씨를 하나의 변수로 구체화
+
+###--------------------------------------- 더움 -------------------------------------------------###
+hot <- weather %>% 
+  filter(avg_temp>20, precipitation==0)
+hot[,"type"] <- c("hot")
+hot <- hot[,c(1,6)]
+head(hot)
+
+###-------------------------------------- 따뜻함 ------------------------------------------------###
+warm <- weather %>% 
+  filter(avg_temp<=20, avg_temp>10, precipitation==0)
+warm[,"type"] <- c("warm")
+warm <- warm[,c(1,6)]
+head(warm)
+
+###--------------------------------------- 쌀쌀함 -----------------------------------------------###
+cool <- weather %>% 
+  filter(avg_temp<=10, avg_temp>0, precipitation==0)
+cool[,"type"] <- c("cool")
+cool <- cool[,c(1,6)]
+head(잘난척)
+
+###--------------------------------------- 추움 -------------------------------------------------###
+cold <- weather %>% 
+  filter(avg_temp<=0,precipitation==0)
+cold[,"type"] <- c("cold")
+cold <- cold[,c(1,6)]
+head(cold)
+
+###------------------------------------------비--------------------------------------------------###
+rain <- weather %>% 
+  filter(avg_temp>=0, precipitation>0)
+rain[,"type"] <- c("rain")
+rain <- rain[,c(1,6)]
+head(비)
+
+###-----------------------------------------눈---------------------------------------------------###
+snow <- weather %>% 
+  filter(min_temp<0, precipitation>0)
+snow[,"type"] <- c("snow")
+snow <- snow[,c(1,6)]
+head(눈)
+  
+#각각 추출한 항목들을 정렬하여 데이터프레임화
+weather_date <- bind_rows(snow, rain, warm, hot, cool, cold)
+head(weather_date)
+
+#731개의 데이터만 존재해야하지만, 738개의 데이터가 할당 돼있는 점을 통해 중복 데이터가 포함되어 있다는 점을 도출한 후 중복 데이터를 제거해주었음.
+weather_date_2 <- weather_date[-which(duplicated(weather_date$date)),]
+head(weather_date_2)
+
+#weather_date_2 항목에 존재하는 date 컬럼 항목의 특성을 as.Date 함수를 사용해 날짜형 데이터로 변환
+weather_date_2$date <- as.Date(weather_date_2$date)
+
+#weather 순으로 정렬된 데이터를 날짜 순서로 정렬 (2019-07-18~2020.08.31)
+weather_date_3 <- weather_date_2[order(weather_date_2$date, weather_date_2$type),]
+head(weather_date_3)
+
+#delivery에 존재하는 데이터는 2019년 7월 18일부터 2020년 8월 31일까지의 데이터만 존재하므로 특정 기간에 할당되는 데이터만 추출함.
+weather_date_4 <- weather_date_3["2019-07-18"<= weather_date_3$date & weather_date_3$date <= "2020-08-31",]
+head(weather_date_4)
+
+#full_join(합집합) 함수를 통해 배달량과 정제한 날씨 데이터를 병합
+delivery_weather <- full_join(Sudo_delivery_num, weather_date_4)
+
+#결측값 제거
+delivery_weather <- na.omit(delivery_weather)
+head(delivery_weather)
+```
+
+## 3. 데이터 분석
+### 3-1. 기술 통계
+#### 3-1-1. 각 날씨별 빈도수, 누적 빈도, 빈도에 따른 비율, 누적 비율을 산출
+ - 빈도수: rain > cool > hot > warm > cold > snow  
+누적 빈도: warm > snow > rain > hot > cool > cold  
+빈도에 따른 비율: rain > cool > hot > warm > cold > snow  
+누적 비율: warm > snow > rain > hot > cool > cold
+```{r}
+#빈도수, 누적 빈도, 빈도에 따른 비율, 누적 비율을 산출
+cbind(Freq=table(delivery_weather$type),
+      Cumul=cumsum(table(delivery_weather$type)),
+      relative=prop.table(table(delivery_weather$type)),
+      Cum.prop=cumsum(prop.table(table(delivery_weather$type))))
+```
+
+##### 3-1-2. 더운 날씨에 따른 배달량
+ - 날씨가 더울 때의 배달량  
+
+ - 최솟값: 89 
+1사분의수: 126.5  
+중앙값: 215  
+평균: 175.9  
+3사분위수: 224  
+최댓값: 237  
+
+ - 평균: 175.9368  
+분산: 2844.081  
+표준편차: 53.32993
+
+```{r}
+hot_select <- subset(delivery_weather, type == "hot")
+hot_summary <- summary(hot_select$`일일 배달량`)
+hot_mean <- mean(hot_select$`일일 배달량`)
+hot_var <- var(hot_select$`일일 배달량`)
+hot_sd <- sd(hot_select$`일일 배달량`)
+hot_mean <- mean(hot_select$`일일 배달량`)
+head(hot_select); hot_summary; hot_mean; hot_var; hot_sd
+```
+
+##### 3-1-3. 따뜻한 날씨에 따른 배달량
+ - 날씨가 따뜻할 때의 배달량  
+
+ - 최솟값: 84  
+1사분의수: 150  
+중앙값: 168.5  
+평균: 180.3  
+3사분위수: 217.5  
+최댓값: 230  
+
+ - 평균: 180.2927  
+분산: 1377.543  
+표준편차: 37.11527
+
+```{r}
+warm_select <- subset(delivery_weather, type == "warm")
+warm_summary <- summary(warm_select$`일일 배달량`)
+warm_mean <- mean(warm_select$`일일 배달량`)
+warm_var <- var(warm_select$`일일 배달량`)
+warm_sd <- sd(warm_select$`일일 배달량`)
+head(warm_select); warm_summary; warm_mean; warm_var; warm_sd
+```
+
+##### 3-1-4. 쌀쌀한 날씨에 따른 배달량
+ - 날씨가 쌀쌀할 때의 배달량  
+
+ - 최솟값: 121  
+1사분의수: 182  
+중앙값: 189.5  
+평균: 193  
+3사분위수: 208  
+최댓값: 220  
+
+ - 평균: 192.98  
+분산: 282.6057  
+표준편차: 16.81088
+
+```{r}
+cool_select <- subset(delivery_weather, type == "cool")
+cool_summary <- summary(cool_select$`일일 배달량`)
+cool_mean <- mean(cool_select$`일일 배달량`)
+cool_var <- var(cool_select$`일일 배달량`)
+cool_sd <- sd(cool_select$`일일 배달량`)
+head(cool_select); cool_summary; cool_mean; cool_var; cool_sd
+```
+
+##### 3-1-5. 추운 날씨에 따른 배달량
+ - 날씨가 추울 때의 배달량  
+  - 최솟값: 182  
+1사분의수: 183  
+중앙값: 192.5  
+평균: 198  
+3사분위수: 208.2  
+최댓값: 224  
+
+ - 평균: 198  
+분산: 308  
+표준편차: 17.54993
+
+```{r}
+cold_select <- subset(delivery_weather, type == "cold")
+cold_summary <- summary(cold_select$`일일 배달량`)
+cold_mean <- mean(cold_select$`일일 배달량`)
+cold_var <- var(cold_select$`일일 배달량`)
+cold_sd <- sd(cold_select$`일일 배달량`)
+head(cold_select); cold_summary; cold_mean; cold_var; cold_sd
+```
+
+##### 3-1-6. 비오는 날씨에 따른 배달량
+ - 날씨가 비 올 때의 배달량  
+
+ - 최솟값: 88  
+1사분의수: 152  
+중앙값: 211  
+평균: 188.9  
+3사분위수: 222  
+최댓값: 237  
+
+ -  평균: 188.8595  
+분산: 1763.455  
+표준편차: 41.99351
+
+```{r}
+rain_select <- subset(delivery_weather, type == "rain")
+rain_summary <- summary(rain_select$`일일 배달량`)
+rain_mean <- mean(rain_select$`일일 배달량`)
+rain_var <- var(rain_select$`일일 배달량`)
+rain_sd <- sd(rain_select$`일일 배달량`)
+head(rain_select); rain_summary; rain_mean; rain_var; rain_sd
+```
+
+##### 3-1-7. 눈오는 날씨에 따른 배달량
+ -  날씨가 눈 올 때의 배달량  
+
+ -  최솟값: 189  
+1사분의수: 195.8  
+중앙값: 198.5  
+평균: 196.8  
+3사분위수: 199.5  
+최댓값: 201  
+
+ -  평균: 196.75  
+분산: 28.25  
+표준편차: 5.315073
+
+```{r}
+snow_select <- subset(delivery_weather, type == "snow")
+snow_summary <- summary(snow_select$`일일 배달량`)
+snow_mean <- mean(snow_select$`일일 배달량`)
+snow_var <- var(snow_select$`일일 배달량`)
+snow_sd <- sd(snow_select$`일일 배달량`)
+head(snow_select); snow_summary; snow_mean; snow_var; snow_sd
+```
+
+##### 3-1-8. psych패키지를 이용한 기술통계량
+ - 날씨별 기술통계량  
+ 사례수: rain > cool > hot > warm > cold > snow  
+평균: cold > snow > cool > rain > warm > hot  
+분산: hot > rain > warm > cold > cool > snow  
+중앙값: hot > rain > snow > cold > cool > warm  
+절삭평균: cold > snow > rain > cool > warm > hot  
+중앙값절대편차: warm > rain = hot > cool > cold > snow  
+최솟값: snow > cold > cool > hot > rain > warm  
+최댓값: rain = hot > warm > cold > cool > snow  
+범위: rain > hot > warm > cool > cold > snow  
+왜도(0에 가까운 값부터 나열): warm > hot > cold > snow > cool > rain  
+첨도(0에 가까운 값부터 나열): rain > warm > cool = cold > hot > snow  
+표준오차: cool > snow > rain > warm > hot > cold
+
+```{r}
+#install.packages("psych")
+library(psych)
+#psych 패키지는 기술통계량을 출력해주는 유용한 함수들의 집합
+#describe는 기술 통계 중에서도 양적자료를 출력해주는 함수
+hot_des <- describe(hot_select$`일일 배달량`)
+warm_des <- describe(warm_select$`일일 배달량`)
+cool_des <- describe(cool_select$`일일 배달량`)
+cold_des <- describe(cold_select$`일일 배달량`)
+rain_des <- describe(rain_select$`일일 배달량`)
+snow_des <- describe(snow_select$`일일 배달량`)
+
+#weather_select에 날씨별로 분석한 기술 통계들을 병합
+weather_select <-  bind_rows(hot_des, warm_des, cool_des, cold_des, rain_des, snow_des)
+
+#가독성을 위해 행 이름 변경
+rownames(weather_select) <- c("hot", "warm", "cool", "cold", "rain", "snow")
+
+head(weather_select)
+```
+
+##### 3-1-9. 날씨별 빈도에 따른 원형 그래프
+- 날씨별 빈도: rain > cool > hot > warm > cold > snow
+```{r}
+#원형 그래프를 통해 날씨별 빈도를 도식화
+pie(table(delivery_weather$type))
+```
+
+##### 3-1-10. 날씨별 빈도에 따른 막대 그래프
+- 날씨별 빈도: rain > cool > hot > warm > cold > snow
+```{r}
+#막대형 그래프를 통해 날씨별 빈도를 도식화
+barplot(table(delivery_weather$type))
+```
+
+##### 3-1-11. 날씨별 일일 배달량 비율에 따른 3D 파이차트
+- 날씨별 일일 배달량 비율: cold > snow > cool > rain > warm > hot   
+ 이 3D파이차트를 이용해서 hot, warm, cool, cold, rain, snow 이 여섯개의 날씨별로 배달량의 평균의 확률을 확인 할 수 있다.이를 통해서 크게 차이나는 경우는 없는 것을 확인 할 수 있다.
+```{r}
+#install.packages("plotrix")
+library(plotrix)
+#3D 파이차트를 통해 날씨별 일일 배달량 비율 도식화
+weather_mean<- c(hot_mean, warm_mean, cool_mean, cold_mean, rain_mean, snow_mean)
+weather_name<- c("hot", "warm", "cool", "cold", "rain", "snow")
+wpt<- round(100*prop.table(weather_mean), 1)
+lbl_w_wpt<- paste(weather_name, wpt)
+lbl_w_wpt<- paste0(lbl_w_wpt,"%")
+```
+
+```{r}
+pie3D(wpt, labels = lbl_w_wpt, col=rainbow(5),
+      main ="날씨별 일일 배달량", family = "AppleGothic",
+      labelcex=1.1, explode=0.1, theta=1.1, shade=0.3)
+```
+
+##### 3-1-12. 날씨별 일일 배달량 비율에 따른 막대그래프
+- 날씨별 일일 배달량 비율: cold > snow > cool > rain > warm > hot   
+barplot을 이용해서 각 날씨별로 일일배달량 평균을 도식화하였다. 이를 통해서 크게 차이나는 경우는 없는 것을 확인 할 수 있다.
+```{r}
+#막대형 그래프 각 컬럼에 이름 추가
+row.names(weather_select) <- c("hot", "warm", "cool", "cold", "rain", "snow")
+
+#막대형 그래프를 통해 날씨별 평균 배달량을 도식화
+barplot(weather_select$mean,names= c("hot", "warm", "cool", "cold", "rain", "snow"),col=c("lightblue", "mistyrose", "lightcyan", "lavender", "cornsilk"))
+```
+
+#### 3-2. 추론 통계
+##### 3-2-1. 온도에 따른 추론 통계(일원분석)
+###### 3-2-1-1. 추론통계를 위한 전처리
+```{r}
+#H0 : 배달량과 날씨에는 차이가 없다.
+#H1 : 배달량과 날씨에는 차이가 있다.
+
+#추론 통계를 위해 온도를 기준으로, 강수 유무를 기준으로 2개의 그룹으로 나누어줌
+weather_abs <- weather[, c(1,2,4)]
+
+#배달량 데이터와 데이터프레임의 열,행이 일치해야 하므로 통일된 날짜만 추출
+weather_date_abs <- weather_abs["2019-07-18"<= weather_abs$date & weather_abs$date <= "2020-08-31",]
+
+#배달량 데이터에 5월 18일 자료가 빠져 있으므로 날씨 데이터에서도 제거
+weather_null_del <- weather_date_abs[!(weather_date_abs$date =="2020-05-18"),]
+
+#분석에 필요하지 않은 컬럼 제거
+weather_date_del <- weather_null_del[, -1]
+
+#정제된 배달 데이터와 추론 통계용 날씨 데이터를 병합
+weather_total <- cbind(delivery_weather, weather_date_del)
+head(weather_total)
+#가독성을 위해 컬럼명을 영문으로 통일 "일일 배달량" -> "Daily delivery"
+names(weather_total)[2]<- "Daily delivery"
+
+#온도를 17도 기준으로 두개의 그룹으로 세분화
+low_weather <- subset(weather_total, avg_temp < 17)
+high_weather <- subset(weather_total, avg_temp >= 17)
+
+#이후 17도 미만의 온도는 "low"로, 17도 이상의 온도는 "high"로 하여 두개의 값으로만 표현
+low_weather$avg_temp<- "low"
+high_weather$avg_temp <- "high"
+
+#full_join(합집합) 함수를 통해 재결합
+weather_total <- full_join(low_weather, high_weather)
+head(weather_total)
+
+#카이스퀘어 테스트를 위해 low 데이터와 high 데이터의 합계 추출
+low_sum <- sum(low_weather$`Daily delivery`)
+high_sum <- sum(high_weather$`Daily delivery`)
+low_high <- c(high_sum, low_sum)
+#as.table 함수를 통해 table형 데이터로 변환
+degree_table <- as.table(low_high)
+degree_table
+
+```
+
+###### 3-2-1-2. 온도에 따른 카이스퀘어 테스트
+```{r}
+chisq.test(degree_table)
+```
+- 온도를 기준으로 분석한 카이스퀘어 테스트를 해보면 카이스퀘어 자승값이 657.35이고 p-value값이 2.2e-16보다 작다는 결과를 얻을 수 있다. 이는 온도와 배달량 사이의 관계는 서로 관련이 있는 것을 확인할 수 있다. 그렇기에 온도에 따라 배달량 빈도와 차이가 있다고 볼 수 있다.
+
+###### 3-2-1-3. 온도를 기준으로 한 정규성 분포 검정
+```{r}
+output_temp <- lm(weather_total$`Daily delivery`~weather_total$avg_temp)
+shapiro.test(resid(output_temp))
+```
+- p값이 2.2e-16으로 0.05보다 작으므로 정규분포를 따른다고 볼 수 없다.
+
+###### 3-2-1-4. 온도에 따른 분산 동질성 검증
+```{r}
+var.test(weather_total$`Daily delivery` ~ weather_total$avg_temp)
+```
+- 온도를 기준으로 분산 동질성 검증을 한 결과 F 값은 4.7398이고, 온도별 자유도는 각각 191, 217 유의도는 2.2e-16으로 0.05보다 낮으므로 분산이 같지 않다. 따라서 Welch's test를 사용해야 한다.
+
+###### 3-2-1-5. 온도에 따른 t-test
+```{r}
+#t-test
+t.test(weather_total$`Daily delivery` ~ weather_total$avg_temp, var.equal = F)
+```
+- 평균온도를 독립변수로 두고 일일배달량을 종속변수로 두어서 온도를 기준으로 분석한 t-test의 결과를 보면 t값은 -2.7202이고 자유도는 260.65이며 유의도가 0.0069533이다. 그렇기에 유의도가 유의수준보다 낮기에 온도에 따라 배달량의 차이가 있다가 볼 수 있다.
+
+###### 3-2-1-6. 온도에 따른 ANOVA(분산분석)
+```{r}
+#온도에 따른 ANOVA(분산분석)
+head(weather_total)
+anova_temp <- aov(weather_total$`Daily delivery` ~ weather_total$avg_temp)
+summary(anova_temp)
+anova_temp
+```
+- 집단 간 제곱값은 12379이고, 자유도는 1이므로 집단 간 평균 제곱합은 12379이다. 집단 내 제곱합은 628005이고, 자유도는 408이므로 집단내 평균 제곱합은 1537이다. F값은 집단 간 평균 제곱합을 집단 내 평균 제곱합으로 나눈 8.042가 되어 집단 간 제곱하븨 자유도와 집단 내 제곱합의 자유도를 감안한 유의도는 0.0048으로 기각을 판단할 수 있는 기준인 0.05보다 낮게 나타나므로 온도에 따른 배달량에 영향을 미친다는 가설을 채택하게 된다.
+
+###### 3-2-1.7. 온도를 기준으로 한 등분산성 검정
+```{r}
+library(car)
+leveneTest(weather_total$`Daily delivery`~weather_total$avg_temp)
+```
+- 분석결과 p-value는 1.827e-14로 유의수준 0.05에서 귀무가설을 기각하게 되므로 등분산을 만족하지 않는다.
+
+###### 3-2-1-8. 온도에 따른 일일 배달량 정도 그래프
+```{r}
+#install.packages("gplots")
+library(gplots)
+#gplot 패키지 중 plotmeans 함수를 통해 도식화
+#x축은 평균기온, y축은 일일 배달량으로 설정하고, 최소값은 170, 최대값은 195로 설정 후 main 값에 제목을 할당해줌
+plotmeans(weather_total$`Daily delivery`~ weather_total$avg_temp, family = "AppleGothic", xlab="평균 기온", ylab= "일일 배달량", ci.label = TRUE, mean.label = TRUE, ylim=c(170,195), barwidth=5, main="온도에 따른 일일 배달량 정도", digits=2, pch="*")
+```
+
+- 이 plotmean을 이용해서 온도의 높고 낮음 따른 일일 배달량 정도를 확인 할 수 있다. 이는 온도가 높은 경우 배달량의 평균과 최솟값, 최댓값 그리고 온도가 낮은 경우에 배달량의 평균과 최솟값, 최댓값을 보여준다. 이 그래프를 통해서 온도가 높은 경우보다 낮은 경우에 배달량이 더 높은 것을 확인할 수 있다. 
+
+##### 3-2-2. 강수 유무에 따른 추론 통계(일원분석)
+###### 3-2-2-1. 추론통계를 위한 전처리
+```{r}
+#강수량 0, 강수량 0 초과를 기준으로 두개의 그룹으로 세분화
+wet_weather <- subset(weather_total, precipitation > 0)
+dry_weather <- subset(weather_total, precipitation = 0)
+
+#강수량 0 초과는 "wet", 0은 "dry"로 하여 두개의 값으로만 표현
+wet_weather$precipitation<- "wet"
+dry_weather$precipitation <- "dry"
+
+#full_join(합집합) 함수를 통해 재결합
+weather_total_wd <- full_join(wet_weather, dry_weather)
+head(weather_total_wd)
+
+#카이스퀘어 테스트를 위해 wet과 dry의 합계 추출
+wet_sum<- sum(wet_weather$`Daily delivery`)
+dry_sum <- sum(dry_weather$`Daily delivery`)
+wet_dry <- c(wet_sum, dry_sum)
+#as.table 함수를 통해 table형 함수로 변환
+pre_table <- as.table(wet_dry)
+pre_table
+```
+
+###### 3-2-2-2. 강수 유무에 따른 카이스퀘어 테스트
+```{r}
+#카이스퀘어 테스트
+chisq.test(pre_table)
+```
+- 강수 유무를 기준으로 분석한 카이스퀘어 테스트를 해보면 카이스퀘어 자승값이 27531이고 p-value값이 2.2e-16보다 작다는 결과를 얻을 수 있다. 이는 유의확률이 거의 0에 가까운 값이라는 의미로 확인할 수 있다. 그렇기에 이는 강수량과 배달량 사이의 관계는 서로 관련이 있는 것을 확인할 수 있다. 그렇기에 강수 유무에 따라 배달량의 빈도에 차이가 있다고 볼 수 있다.
+
+###### 3-2.2.3. 강수 유무를 기준으로 한 정규성 검정 분포
+```{r}
+output_prec <- lm(weather_total_wd$`Daily delivery`~weather_total_wd$precipitation)
+shapiro.test(resid(output_prec))
+```
+- p-value가 2.2e-16으로 0.05보다 작으므로 정규분포를 따르지 않는다.
+
+###### 3-2-2-4. 강수 유무에 따른 분산 동질성 검증
+```{r}
+var.test(weather_total_wd$`Daily delivery` ~ weather_total_wd$precipitation)
+```
+- 강수 유무를 기준으로 분산 동질성 검증을 한 결과 F 값은 0.91606이고, 강수유무 자유도는 각각 409, 124 유의도는 0.5257으로 0.05보다 크다. 따라서 두 집단의 분산이 같다는 가정으로 T검증을 수행할 수 있다.
+
+###### 3-2-2-5. 강수 유무에 따른 t-test
+```{r}
+#t-test 
+t.test(weather_total_wd$`Daily delivery` ~ factor(weather_total_wd$precipitation))
+```
+- 강수량을 독립변수로 두고 일일배달량을 종속변수로 두어서 강수량을 기준으로 분석한 t-test의 결과를 보면 t값은 -0.88461이고 자유도는 198.25이며 유의도가 0.3774이다. 그렇기에 유의도가 유의수준보다 높기 때문에 강수 유무에 따른 배달량에 차이가 없다고 볼 수 있다.
+
+###### 3-2-2-6. 강수 유무에 따른 ANOVA(분산분석)
+```{r}
+#강수 유무에 따른 분산분석
+anova_pre <- aov(weather_total_wd$`Daily delivery` ~ factor(weather_total_wd$precipitation))
+summary(anova_pre)
+```
+- 집단 간 제곱값은 1311이고, 자유도는 1이므로 집단 간 평균 제곱합은 1311이다. 집단 내 제곱합은 852324이고, 자유도는 533이므로 집단내 평균 제곱합은 1599이다. F값은 집단 간 평균 제곱합을 집단 내 평균 제곱합으로 나눈 0.82가 되어 집단 간 제곱합의 자유도와 집단 내 제곱합의 자유도를 감안한 유의도는 0.366으로 기각을 판단할 수 있는 기준인 0.05보다 높게 나타나므로 강수 유무에 따른 배달량에 영향이 없다는 가설을 채택하게 된다 .
+
+###### 3-2-2.7. 강수 유무를 기준으로 한 등분산성 검정
+```{r}
+leveneTest(weather_total_wd$`Daily delivery`~weather_total_wd$precipitation)
+```
+- 분석결과 P-value는 0.8686으로 유의 수준 0.05에서 귀무가설을 기각하지 못하므로 등분산을 만족한다.
+
+###### 3-2-2-8. 강수 유무에 따른 일일 배달량 정도 그래프
+```{r}
+plotmeans(weather_total_wd$`Daily delivery` ~ weather_total_wd$precipitation, family = "AppleGothic", xlab="강수 유무", ylab = "일일 배달량", ci.label = TRUE, mean.label = TRUE, ylim=c(170, 200), barwidth=5, main="강수 유무에 따른 일일 배달량 정도", digits = 2, pch="*")
+```
+
+- 이 plotmean을 이용해서 강수 유무에 따른 일일 배달량 정도를 확인 할 수 있다. 이는 강수량이 0보다 큰 값들의 배달량의 평균과 최솟값, 최댓값, 그리고 강수량이 0인 경우에 배달량의 평균과 최솟값, 최댓값을 보여준다. 이 그래프를 통해서 강수량이 있을 때와 강수량이 없을 때에  배달량의 정도가 큰 차이는 없다는 것을 볼 수 있다. 하지만 강수량이 있을 때 최댓값이 높은 것을 보면 배달을 더 많이 시키는 경향을 확인 할 수 있다.
+
+##### 3-2-3. 사후검정
+###### 3-2-3-1. 온도 변수에 대한 사후검정
+```{r}
+TukeyHSD(anova_temp)
+```
+- 온도와 배달량의 집단의 수가 같으므로 Tukey를 사용하였고 두 그룹의 차이, 신뢰구간, 두 그룹간 차이의 p값을 출력해보았음. p-value가 0.05보다 낮으므로 집단간 차이가 있음을 알 수 있다.
+
+###### 3-2-3-2. 강수 유무 변수에 대한 사후검정
+```{r}
+TukeyHSD(anova_pre)
+```
+- 강수 유무와 배달량의 집단의 수가 같으므로 Tukey를 사용하였고 두 그룹의 차이, 신뢰구간, 두 그룹간 차이의 p값을 출력해보았음. p-value가 0.05보다 매우 크므로 집단간 차이가 없음을 알 수 있다.
+
+##### 3-2-4. 온도와 강수 유무를 기준으로 한 추론 통계(이원분석)
+###### 3-2-4-1. 배달량의 주효과와 상호작용 효과
+```{r}
+#독립변수의 주효과와 상호작용 효과 둘다 출력함
+weat_deli_ano1a <- aov(weather_total_wd$`Daily delivery` ~ weather_total_wd$avg_temp * weather_total_wd$precipitation)
+
+#독립변수의 주효과만을 출력함
+weat_deli_ano1b <- aov(weather_total_wd$`Daily delivery` ~ weather_total_wd$avg_temp + weather_total_wd$precipitation)
+```
+
+###### 3-2-4-2. 독립변수와 상호작용 효과의 결과값으로 한 ANOVA(분산분석)
+```{r}
+anova(weat_deli_ano1a)
+```
+- 이원분산분석 중 독립변수와 상호작용 효과의 결과값으로 온도와 강수유무 F 값은 각각 9.4551, 1.2837이었고, 이 두 변수는 모두 집단에 따라 배달량과 통계적으로 유의한 차이가 있음을 알 수 있었음.
+
+###### 3-2-4-3. 주효과의 결과값으로 한 ANOVA(분산분석)
+```{r}
+anova(weat_deli_ano1b)
+```
+- 이원분산분석 중 주효과만의 결과값으로 온도와 강수유무 F 값은 각각 9.4727, 1.2861이었고, 이 두 변수는 모두 집단에 따라 배달량과 통계적으로 유의한 차이가 있음을 알 수 있었음.
+
+###### 3-2-4-4. 온도와 강수 유무에 따른 기술통계량
+```{r}
+describeBy(weather_total_wd$`Daily delivery`, list(weather_total_wd$avg_temp, weather_total_wd$precipitation), mat= TRUE, digits=2)
+```
+- 온도의 높고 낮음, 강수 유무에 따라 두 집단 값의 사례수, 평균, 표준편차 등 기술통계량을 출력할 수 있음. 눈에 띄는 차이는 없었으나 온도가 낮을 때에 비해 온도가 높을 때 배달량이 좀 더 높다는 것을 알 수 있었음.
+
+###### 3-2-4-5. 집단별 평균값 구하기
+```{r}
+aggregate(weather_total_wd$`Daily delivery` ~ weather_total_wd$avg_temp + weather_total_wd$precipitation, FUN = mean)
+```
+- formula에 따라 하위 집단을 나누고 하위집단의 기술통계량 출력을 위해 FUN 인자에 결과값 출력을 위한 기술통계 기준을 지정할 수 있다. 평균을 기준으로 출력한 결과 일일 배달량에 극명한 차이를 보이지는 않았다.
+
+###### 3-2-4-6. 집단별 평균값 구하기
+```{r}
+tapply(weather_total_wd$`Daily delivery`, list(weather_total_wd$avg_temp, weather_total_wd$precipitation), mean)
+```
+- aggreagate 함수와 마찬가지로 집단별 평균값을 구할 수 있다.
+
+###### 3-2-4-7. 집단에 따른 평균 비교를 위한 도표 출력
+```{r}
+interaction.plot(x.factor = weather_total_wd$avg_temp,
+                 trace.factor = weather_total_wd$precipitation,
+                 response = weather_total_wd$`Daily delivery`,
+                 fun = mean,
+                 type = "b",
+                 legend = TRUE,
+                 xlab = "온도",
+                 ylab = "배달량",
+                 pch=c(1,20),
+                 col = c("#00AFBB", "#E7B800"),
+                 family = "AppleGothic")
+
+```
+- 상호작용 효과를 도표로 출력하였다. x축에는 독립변수인 온도, 범례에 표시될 독립변수인 강수량, y축에는 종속변수인 일일배달량을 입력한 결과 평균온도와 강수량에 따라 교차하는 부분이 없기 때문에 일일배달량의 차이가 없음을 알 수 있다.
+
+### 3-3. 워드클라우드를 이용한 날씨에 따른 배달 인기 메뉴 분석
+```{r}
+#install.packages("worldcloud")
+#install.packages("RcolorBrewer)
+library(RColorBrewer)
+library(wordcloud)
+
+# 날씨에 따른 배달 인기 메뉴 분석의 워드클라우드
+weather_menu <- full_join(Sudo_delivery, delivery_weather)
+
+weather_menu_hot <- weather_menu %>% filter(weather_menu$type == 'hot')
+
+weather_menu_cold <- weather_menu %>% filter(weather_menu$type == 'cold')
+
+weather_menu_cool <- weather_menu %>% filter(weather_menu$type == 'cool')
+
+weather_menu_warm <- weather_menu %>% filter(weather_menu$type == 'warm')
+
+weather_menu_rain <- weather_menu %>% filter(weather_menu$type == 'rain')
+
+weather_menu_snow <- weather_menu %>% filter(weather_menu$type == 'snow')
+
+weather_menu_snow_num <- weather_menu_snow %>%
+  group_by(menu) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+weather_menu_cold_num <- weather_menu_cold %>%
+  group_by(menu) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+weather_menu_cool_num <- weather_menu_cool %>%
+  group_by(menu) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+weather_menu_warm_num <- weather_menu_warm %>%
+  group_by(menu) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+weather_menu_rain_num <- weather_menu_rain %>%
+  group_by(menu) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+weather_menu_hot_num <- weather_menu_hot %>%
+  group_by(menu) %>%
+  summarise(
+    "일일 배달량" = n()
+  )
+
+snow_menu <- wordcloud(words = weather_menu_snow_num$menu, #단어,
+          freq = weather_menu_snow_num$`일일 배달량`, #메뉴 배달량
+          min.freq = 2,
+          max.words = 200,
+          random.order = F,
+          rot.per = .1,
+          scale = c(3, 0.4),
+         family = "AppleGothic") ; snow_menu
+
+hot_menu <- wordcloud(words = weather_menu_hot_num$menu, #단어,
+          freq = weather_menu_hot_num$`일일 배달량`, #메뉴 배달량
+          min.freq = 2,
+          max.words = 200,
+          random.order = F,
+          rot.per = .1,
+          scale = c(3, 0.4),
+         family = "AppleGothic") ; hot_menu
+
+cool_menu <- wordcloud(words = weather_menu_cool_num$menu, #단어,
+          freq = weather_menu_cool_num$`일일 배달량`, #메뉴 배달량
+          min.freq = 2,
+          max.words = 200,
+          random.order = F,
+          rot.per = .1,
+          scale = c(3, 0.4),
+         family = "AppleGothic") ; cool_menu
+
+sunny_menu <- wordcloud(words = weather_menu_sunny_num$menu, #단어,
+          freq = weather_menu_sunny_num$`일일 배달량`, #메뉴 배달량
+          min.freq = 2,
+          max.words = 200,
+          random.order = F,
+          rot.per = .1,
+          scale = c(3, 0.4),
+         family = "AppleGothic") ; sunny_menu
+
+rain_menu <- wordcloud(words = weather_menu_rain_num$menu, #단어,
+          freq = weather_menu_rain_num$`일일 배달량`, #메뉴 배달량
+          min.freq = 2,
+          max.words = 200,
+          random.order = F,
+          rot.per = .1,
+          scale = c(3, 0.4),
+         family = "AppleGothic") ; rain_menu
+
+cold_menu <- wordcloud(words = weather_menu_cold_num$menu, #단어,
+          freq = weather_menu_cold_num$`일일 배달량`, #메뉴 배달량
+          min.freq = 2,
+          max.words = 200,
+          random.order = F,
+          rot.per = .1,
+          scale = c(3, 0.4),
+         family = "AppleGothic") ; cold_menu
+```
+
+## 4. 결론
+- 주제 구체화 과정과 가설 설정 가정에서 날씨가 배달량에 큰 영향을 미칠 것이라 생각했다. 때문에 온도와 강수량을 기준으로 하여 다양한 추론 통계 분석을 진행하였다. 그 결과 강수량 기준으로 통계 분석을 진행했을 때 날씨가 배달량에 유의미한 영향을 미치지 않았다. 반면에 온도를 기준으로 통계 분석을 진행했을 때 날씨가 배달량에 유의미한 영향을 미치는 점을 알 수 있었다. 또한 기술통계 페이지에서는 psych 라는 패키지를 통해 기술 통계 분석을 유용하게 할 수 있었고, pie3d 패키지를 비롯해 barplot, pie chart 등 도식화 하는 과정까지 진행했다. 추론통계 페이지에서는 카이스퀘어, t-test, ANOVA 등의 기법을 활용해 분석했으며, plotmeans를 통해 도식화도 진행했다. 추가적으로 날씨에 따른 인기 배달 음식을 지표화하여 워드클라우드로 나타내보았다.
