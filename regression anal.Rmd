@@ -1,0 +1,369 @@
+---
+title: "과제#4 회귀분석"
+author: "성원호"
+date: "5/16/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 데이터 수집 및 할당
+```{r}
+library(dplyr)
+library(stringr)
+# install.packages("QuantPsyc")
+library(QuantPsyc)
+# install.packages("car")
+library(car)
+library(sjPlot)
+library(lmtest)
+library(psych)
+library(interactions)
+library(jtools)
+# 국가별 문화 점수(Hofstede model)는 국가별 혁신 정도의 점수와 연관성을 갖는지를 검증한다.
+
+# 국가가 소속한 대륙 또한 독립 변수로서 국가별 혁신 정도 점수와 연관성을 갖는지 검증할 것이다.
+
+# 종속변수 : 국가별 혁신 정도의 점수
+index <- read.csv("INSEADGlobalinnovationIndex2018.csv", fileEncoding = "CP949", encoding = "UTF-8")
+head(index)
+
+# 독립변수 : 소속 대륙 및 국가별 문화적 차원 점수(Hofstede model)
+hofs <- read.csv("hofstede.csv", fileEncoding = "CP949", encoding = "UTF-8")
+head(hofs)
+```
+
+## 데이터 정제
+```{r}
+# 국가 혁신 지표와 호프 스테드 데이터를 병합하고자 나라 이름들의 컬럼 이름을 Country로 변환해줌
+index <- rename(index, "Country" = "Economy")
+
+# 소문자와 대문자의 구별 후 병합해야하므로 소문자로 변환 시켜줌
+index$Country <- tolower(index$Country)
+head(index)
+
+hofs <- rename(hofs, "Country" = "slug")
+head(hofs)
+
+# Country를 기준으로 내부 조인 실행
+innovation <- inner_join(index, hofs, by = "Country")
+head(innovation)
+
+# ivr = ind(같은 값을 가지는 컬럼)이기 때문에 하나를 소거하여 출력
+# 국가별 혁신 점수로 산출된 순위를 기준으로 출력하도록 만든다.
+innovation <- innovation %>%
+  dplyr::select(Rank, Score, id, title, pdi, idv, mas, uai, lto, ind, Continent) %>%
+  arrange(Rank)
+head(innovation)
+```
+* 국가 혁신 인덱스 데이터와 호프스테드 문화모델은 국가 표기에 있어 차이가 존재했음. 
+ex) South Korea <-> korea, repulic of
+때문에 데이터를 병합했을 때 Rank가 나오지 않는 나라들은 표기를 직접 csv 데이터 안에서 바꾸어주었으며, 아예 없는 나라들도 존재했음(측정 불가, 데이터 결측 등의 이유라 생각했습니다.)
+
+* pdi : 사회적으로 권력을 갖지 못한 계층이 권력에 순응하는 정도
+* idv : 사회구조의 형태를 선호하는 정도(idv가 높으면 사람들은 느슨하게 엮인 사회구조를 선호함)
+* mas : 사회가 성취, 영웅, 자기주장에 얼마나 우호적인지, 성공에 어떠한 보상이 있는지를 나타낸 정도
+* uai : 사회 구성원들이 불확실하거나 불명확한 상황에 얼마나 불편함을 느끼는지를 나타내는 정도
+* lto : 사회의 보수/진보적 정도를 판가름하는 지표(lto가 낮은 사회의 경우 의심을 갖고 사회를 바라보고 과거의 전통 및 규범을 지키고자 노력함)
+* ind=ivr : 사회의 관대한 정도, 인간의 자연스러운 욕구를 얼마나 허용하는지를 의미하는 정도
+
+## 다중회귀분석
+```{r}
+# lm 함수를 사용하여 종속변수(국가 혁신 점수)와 독립변수(호프 스테드 문화 모형 점수)를 입력하여 할당
+regression_1 <- lm(innovation$Score ~ innovation$pdi+innovation$idv+innovation$mas+innovation$uai+innovation$lto+innovation$ind)
+
+#summary 함수를 이용해 회귀분석의 결과를 확인
+summary(regression_1)
+
+# jtools의 summ이라는 함수인데 summary와 동일한 기능을 하지만 더 깔끔하게 결과값을 보여준다.
+# 정석을 위해 아래 코드부터는 summary 함수를 사용할 것임
+summ(regression_1)
+```
+* pdi부터 ind 순서로 회귀 계수는 -0.183, 0.172, -0.009, 0.029, 0.175, 0.051임을 알 수 있다.
+* pdi, idv, lto는 유의도가 0.05보다 낮게 나타나고, ind, mas, uai는 그보다 높은 수준으로 나타난다. 0.05보다 낮은 항목들의 독립변수들은 종속변수에 대해 통계적으로 유의한 영향을 미치고 있음을 알 수 있다.
+* F 값은 29.5이고 유의확률은 2.2e-16보다 낮게 나타나므로 F값에 따른 유의도가 0.05보다 낮다. 때문에 회귀모형은 의미가 있다는 연구가설을 채택하게 된다.
+* R^2값은 0.6604로 종속변수 분산 중 독립변수에 의해 설명되는 분산이 66.04%라고 해석하면 된다.
+
+## 표준화 계수값 구하기
+```{r}
+lm.beta(regression_1)
+round(lm.beta(regression_1), 3)
+```
+* lm.beta : 표준화 회귀계수(베타) 값을 출력하는 함수
+* round : 가시성을 위해 소수점 세자리까지 올림
+* lto의 표준화 계수는 0.388로 가장 높게 나타났기 때문에 혁신 점수에 가장 큰 영향을 미치는 독립변수임을 알 수 있다.
+
+## 다중공선성 진단을 위한 VIF 값 구하기
+```{r}
+vif(regression_1)
+vif(regression_1) < 10
+```
+* vif : 다중공선성으로 인해 회귀모형이 문제가 있다는 것을 의미한다.(분산팽창요인)
+* vif 수식 내에서 값이 10 이상 산출되면 다중공선성이 존재하는데, 현재 모든 독립변수들의 vif 값이 10 미만으로 나타나기에 다중공선성에 문제가 되지 않는다는 것을 알 수 있다.
+
+## sjPlot을 이용해 결과표, 도표 출력
+```{r}
+tab_model(regression_1, show.se = T, show.ci = F, show.stat = T)
+tab_model(regression_1, show.se = T, show.ci = F, show.stat = T,
+          pred.labels = c("(Intercept)", "pdi", "idv", "mas", "uai", "lto", "ind"), 
+          dv.labels = c("innovation score"), file = "regression_1.html")
+file.show("regression_1.html")
+
+```
+* tab_model : 다중회귀분석의 결과를 표의 형태로 출력해주는 함수
+* Predictors를 제외하고 왼쪽부터 회귀 계수, 표준오차, t값, 유의확률로 해석하면 된다.
+* Observations(분석에 사용한 사례수), R^2 값과 수정된 R^2 값도 찾아볼 수 있다.
+
+## sjPlot을 이용해 다중회귀분석 도표 작성
+```{r}
+set_theme(axis.title.size = 1.0, axis.textsize = 1.0)
+plot_model(regression_1, type = "est", wrap.labels = 5)
+plot_model(regression_1, type = "est", axis.labels = c("pdi", "idv", "mas", "uai","lto", "ind"), axis.title = "Innovation score", wrap.labels = 5)
+```
+
+*  plot_model 함수를 이용해 저장된 다중회귀분석 결과를 지정하고, y축에는 변수 설명을 label에서 가져오는 대신 lm 함수에 입력했던 독립변수들을 다시 입력해준다.
+*  lm 함수에 입력했던 것들 : pdi, idv, mas, uai, lto, ind
+*  출력되는 그림은 회귀 계수를 나타낸 것이며 선의 길이는 신뢰구간을 의미한다.
+
+## 다중회귀분석 도표에 표준화 계수
+```{r}
+plot_model(regression_1, type = "std", sort.est = T, wrap.labels = 5)
+plot_model(regression_1, type = "std", sort.est = T,
+           axis.labels = c("pdi", "idv", "mas", "uai", "lto", "ind"), axis.title ="Innovation Score", wrap.labels = 5)
+```
+
+* 만약 회귀 계수가 아닌 표준화 계수로 나타내고자 한다면 type의 옵션을 est가 아닌 std로 설정하면 표준화 계수 도표를 출력한다.
+
+## sjPlot을 이용해 다중공선성 진단 및 회귀분석 가정 검정
+```{r}
+plot_model(regression_1, type = "diag")
+dwtest(regression_1)
+```
+* 다중회귀모형에 있어 다중공선성을 진단하고 회귀분석 기본 가정 만족여부를 도표로 출력하려면 위와 같이 입력해주면 된다.(type 옵션이 diag)
+* dwtest는 모형의 잔차를 검정하는 함수이다. 기본으로는 단측검정을 수행하고 잔차들의 자기 상관이 0보다 큰지를 검정한다.
+* 다중공선성 진단 결과 독립 변수들의 vif 값이 모두 10 이하를 나타내고 있기 때문에 다중공선성으로 인한 문제가 없다는 것을 알 수 있다.
+
+## 다중회귀분석의 전진 선택 모형
+```{r}
+# 결측값 제거하기
+innovation.none <- na.omit(innovation[c("Score", "pdi","idv","mas","uai","lto", "ind")])
+
+# 전체 모형과 기본 모형 생성
+regression_none <- lm(Score ~ pdi+idv+mas+uai+lto+ind, data = innovation.none)
+null <- lm(Score ~ 1, data = innovation.none)
+
+# 전진 선택 모형
+front <- step(null, scope=list(lower=null, upper = regression_none), direction = "forward")
+summary(front)
+```
+* 전진선택 분석에서는 결측값을 모두 제거해준 뒤, 독립변수가 하나도 없는 모형을 기본 모형으로 한다.(null이라는 변수에 저장) 이후 단계적으로 모델을 선택하여 분석하는 step 함수를 이용한다.
+scope 인자에서는 전진 분석의 기본 모형과 필자가 지정한 회귀 모형 변수를 입력해준다.
+* AIC : 주어진 데이터에 통계 모델의 상대적 품질을 평가하는 기준으로 낮을 수록 좋다.
+* 기본 모형을 통해 출력되는 것들은 Df(자유도), Sum of Sq(제곱합), RSS(잔차 제곱 합), 그리고 AIC가 출력되는 것을 알 수 있다.
+* 각 단계를 살펴보면 첫 모형 Score~1은 AIC가 486.9이다. 여기에 idv를 추가시 423.27로 감소한다. 여기에 lto를 추가시 403.45, pdi 추가시 390.55, ind 추가시 389.83까지 감소한다. 그러나 uai를 추가시엔 391.11로 상승하기 때문에 추가하지 않고 Score ~ idv + lto + pdi + ind에서 전진선택을 멈춘다.
+* 최종 모형을 살펴보면 F 값은 44.68이고 유의도는 2.2e-16으로 유의수준인 0.05보다 낮게 나타나므로 최종 모형은 의미가 있음을 알 수 있다. 또한 R^2 값은 0.6577로 종속 변수인 혁신 점수의 전체 분산 중 4개의 독립변수가 65.77%를 설명한다는 것을 알 수 있다.
+
+## 다중회귀분석의 후진 선택 모형
+```{r}
+# 후진 선택 모형
+# 전진 선택 모형과는 달리 direction 인자를 backward로 할당해준다.
+rear <- step(regression_none, direction="backward")
+summary(rear)
+```
+* 후진 선택 모델은 전진 선택과 달리 유의 하지 않은 변수가 많더라도 p값을 기준으로 변수를 하나씩 제거하여 모든 변수가 유의, 혹은 더 이상 변수가 없을 때까지 제거한다.
+* 변수를 하나씩 제거하는 이유 : 다중공선성(a1 변수 삭제 시, a2의 p값에 변동이 생김) 때문이다.
+* 첫 단계에서는 필자가 입력한 모든 독립변수를 가정한 회귀 모형이 출력된다. 
+* AIC가 가장 작아질 때까지 진행한 결과 pdi, idv, lto, ind의 독립변수가 선택된 389.83이 최소 AIC값임을 도출하였다.
+* 전진선택에서 도출했던 최소 AIC 값 389.83과 후진 선택에서 도출한 값이 일치함을 확인하였다.
+
+## 선택적 제거 방법(단계선택법)
+```{r}
+# 선택 제거 모델
+selection <- step(regression_none, direction="both")
+summary(selection)
+```
+* 선택 제거 방법은 전진, 후진이 함께 쓰인 방법으로 변수를 추가하면서 새롭게 추가된 변수들을 비롯해 기존 변수들이 중요도가 낮아질 때 변수를 다시 제거하여 단계별로 추가 혹은 제거를 판단하여 최소 AIC 값이 나올때까지 진행하는 방법이다.
+* 그 결과 Score ~ pdi + idv + lto + ind 일 때 가장 최소의 AIC 값이 나왔기 때문에 전진, 후진 모델에서 도출된 최소값과 일치한다.
+* 독립 변수 앞에 출력되는 +와 - 기호에 대한 설명을 하자면 +의 경우 변수가 추가 되었을 경우이고, -의 경우 제거되었을 경우를 나타낸다.
+* ind 까지 진행 됐을 때 모형 선택이 멈춘 이유는 더 이상 추가, 제거 할 독립변수가 없기 때문이다.
+
+## 더미변수를 이용한 회귀분석 방법
+```{r}
+# 가설 : 대륙에 따라 국가 혁신 점수에 영향을 미칠 것이다.
+
+# 아프리카를 기준으로 더미변수 생성
+head(innovation)
+innovation$dummy_1 <- ifelse(innovation$Continent=="Africa", 1, 0) 
+
+# 아시아를 기준으로 더미변수 생성
+innovation$dummy_2 <- ifelse(innovation$Continent=="Asia",1,0)
+
+#유럽을 기준으로 더미변수 생성
+innovation$dummy_3 <- ifelse(innovation$Continent == "Europe", 1, 0)
+
+# 아프리카 대륙에 속한 나라는 14개, 아시아는 30개, 그리고 유럽은 36개이기 때문에 더미변수가 제대로 만들어졌다는 것을 확인할 수 있었다.
+table(innovation$Continent)
+table(innovation$dummy_1)
+table(innovation$dummy_2)
+table(innovation$dummy_3)
+```
+
+## 더미변수 3개(아프리카, 아시아, 유럽)을 기준으로 진행한 다중회귀분석
+```{r}
+regression_2 <- lm(Score ~ pdi+idv+mas+uai+lto+ind+dummy_1+dummy_2+dummy_3, data = innovation)
+
+summary(regression_2)
+
+# 다중 공선성 검사
+vif(regression_2)
+
+# 표준화 계수 출력
+lm.beta(regression_2)
+```
+* 결과 해석 시 pdi ~ ind 까지 p-value가 유의 수준인 0.05보다 높은 것들(mas, uai)을 제외한 모든 독립 변수가 통계적으로 유의, 또한 추가한 더미 변수들을 보면 (1) 아프리카 대륙은 혁신 정도와 호프스테드 문화 점수와 연관이 있다. 를 제외한(2),(3)번 더미 변수는 통계적으로 유의한 영향을 미치지 않고 있다.
+* 따라서 1번의 더미 변수는 유의 수준 0.006이므로 종속변수에게 통계적으로 유의한 영향을 주는 것으로 나타났다.
+* 다중 공선성 검사 결과 더미들을 포함한 모든 변수들이 10을 초과하지 않기 때문에 회귀분석에 사용이 가능한 모델임
+* 최종 모형에서 idv가 종속 변수에 가장 큰 영향을, lto, dummy_3이 그 다음으로 영향을 준다는 결론을 얻을 수 있다.
+
+
+## sjPlot 패키지의 tab_model 함수를 이용해 회귀분석 결과 출력
+```{r}
+tab_model(regression_2, show.se = T, show.ci = F, show.stat = T, auto.label = F)
+tab_model(regression_2, show.se = T, show.ci = F, show.stat = T,
+          pred.labels = c("(Intercept)", "pdi", "idv", "mas", "uai", "lto", "ind", "dummy_1", "dummy_2", "dummy_3"), 
+          dv.labels = c("innovation score"), file = "regression_2.html")
+file.show("regression_2.html")
+```
+
+## factor 변수로 변환하여 연구가설 검증하기
+```{r}
+# factor 함수는 성별, 지역과 같은 범주형 변수로 데이터에 저장되는데 사용되는 함수
+innovation$Continent <- factor(innovation$Continent)
+
+# factor 변수가 포함된 다중회귀분석을 시행한다.
+regression_3 <- lm(Score ~ pdi + idv + mas + uai + lto + ind + Continent, data = innovation)
+
+summary(regression_3)
+```
+* lm 함수는 독립변수를 factor로 인식시에 해당 변수 내 변수 값 중 가장 낮은 값의 집단(아프리카)을 준거집단으로 삼아 일시적으로 더미변수를 만들어 분석한다.
+
+## as.factor 함수를 이용한 더 편리한 방법
+```{r}
+regression_4 <- lm(innovation$Score ~ innovation$pdi+innovation$idv+innovation$mas+innovation$uai+innovation$lto+innovation$ind+as.factor(innovation$Continent))
+
+summary(regression_4)
+```
+
+## 다중회귀분석 결과표 작성
+```{r}
+tab_model(regression_3, show.se = T, show.ci = F, show.stat = T, auto.label = F)
+```
+
+## 독립변수들 간 상호작용 효과를 포함한 회귀분석 방법
+```{r}
+# 평균 값인 변수 생성
+# 각 변수의 평균을 0으로 만들어주기
+mean.pdi <- mean(innovation$pdi, na.rm = TRUE)
+mean.idv <- mean(innovation$idv, na.rm = TRUE)
+mean.mas <- mean(innovation$mas, na.rm = TRUE)
+mean.uai <- mean(innovation$uai, na.rm = TRUE)
+mean.lto <- mean(innovation$lto, na.rm = TRUE)
+mean.ind <- mean(innovation$ind, na.rm = TRUE)
+
+# 0으로 만들어진 평균 값을 빼줘서 다시 변수에 할당
+innovation$center.pdi <- innovation$pdi - mean.pdi
+innovation$center.idv <- innovation$pdi - mean.idv
+innovation$center.mas <- innovation$pdi - mean.mas
+innovation$center.uai <- innovation$pdi - mean.uai
+innovation$center.lto <- innovation$lto - mean.lto
+innovation$center.ind <- innovation$pdi - mean.ind
+```
+* 독립변수와 새로운 상호작용 변수 간에 높은 상관관계로 인해 나타나는 다중공선성 문제를 해결하고자 하는 방법이다.
+* 상호작용 효과를 살펴볼 독립변수들 pdi ~ ind 의 평균을 0으로 만든 후 필자가 직접 변수 평균을 산출하여 해당 변수에서 평균을 뺀다.
+
+## scale 함수를 이용해 평균 중심화
+```{r}
+# scale 함수를 활용한 평균 중심화
+# 각 독립 변수의 평균을 0으로 만들어주기
+innovation$center.pdi <- scale(innovation$pdi, center = T, scale = F)[,1]
+innovation$center.idv <- scale(innovation$idv, center = T, scale = F)[,1]
+innovation$center.mas <- scale(innovation$mas, center = T, scale = F)[,1]
+innovation$center.uai <- scale(innovation$uai, center = T, scale = F)[,1]
+innovation$center.lto <- scale(innovation$lto, center = T, scale = F)[,1]
+innovation$center.ind <- scale(innovation$ind, center = T, scale = F)[,1]
+
+# scale 함수를 이용해 표준화 값으로 변환 (독립변수들의 평균운 0, 분산은 1로 변환)
+innovation$center.pdi_2 <- scale(innovation$pdi, center = T, scale = T)[,1]
+innovation$center.idv_2 <- scale(innovation$idv, center = T, scale = T)[,1]
+innovation$center.mas_2 <- scale(innovation$mas, center = T, scale = T)[,1]
+innovation$center.uai_2 <- scale(innovation$uai, center = T, scale = T)[,1]
+innovation$center.lto_2 <- scale(innovation$lto, center = T, scale = T)[,1]
+innovation$center.ind_2 <- scale(innovation$ind, center = T, scale = T)[,1]
+
+table(is.na(innovation$center.lto))
+table(is.na(innovation$center.ind))
+
+innovation$center.lto[is.na(innovation$center.lto)] = 0
+innovation$center.ind[is.na(innovation$center.ind)] = 0
+
+describe(innovation$center.pdi)
+describe(innovation$center.idv)
+describe(innovation$center.mas)
+describe(innovation$center.uai)
+describe(innovation$center.lto)
+describe(innovation$center.ind)
+describe(innovation$idv)
+
+describe(innovation$center.pdi_2)
+describe(innovation$center.idv_2)
+describe(innovation$center.mas_2)
+describe(innovation$center.uai_2)
+describe(innovation$center.lto_2)
+describe(innovation$center.ind_2)
+
+# 상호작용 효과를 살펴보려면 변수들 사이에 * 기호를 추가해준다.
+regression_5 <- lm(Score ~ center.pdi*center.idv*center.mas*center.uai*center.lto*center.ind, data = innovation)
+summary(regression_5)
+
+regression_6 <- lm(Score ~ pdi+idv+mas+uai+lto+ind, data = innovation)
+summary(regression_6)
+
+regression_7 <- lm(Score ~ + pdi*idv*mas*uai*lto*ind, data = innovation)
+summary(regression_7)
+
+```
+* scale : 행렬 유형의 데이터를 정규화하는 함수이다. 상호작용 효과를 살펴볼 독립변수의 평균을 0으로 만들거나, 표준화 시킬 수 있다.
+
+```{r}
+vif(regression_5)
+vif(regression_7)
+```
+* 평균 중심화를 했을 때와 하지 않았을 때를 비교한 결과 평균 중심화를 했을 때 상호작용과 관련된 변수들 간에 vif 값이 더 낮다는 것을 알 수 있다.
+
+## 다중회귀분석 결과표 작성
+```{r}
+tab_model(regression_5, show.se = T, show.ci = F, show.stat = T, auto.label = F)
+```
+
+## interactions 패키지를 활용한 다중회귀분석 결과표 작성
+```{r}
+interact_plot(regression_5, pred = "center.pdi", modx = "center.idv", mod2 = "center.mas", plot.points = TRUE)
+
+interact_plot(regression_5, pred = "center.idv", modx = "center.mas", mod2 = "center.uai", plot.points = TRUE)
+
+interact_plot(regression_5, pred = "center.mas", modx = "center.uai", mod2 = "center.lto", plot.points = TRUE)
+
+interact_plot(regression_5, pred = "center.uai", modx = "center.lto", mod2 = "center.ind", plot.points = TRUE)
+
+interact_plot(regression_5, pred = "center.lto", modx = "center.ind", mod2 = "center.pdi", plot.points = TRUE, int.width = 0.95)
+
+interact_plot(regression_5, pred = "center.ind", modx = "center.pdi", mod2 = "center.idv", plot.points = TRUE)
+```
+
+* pred : 상호 작용과 관련된 예측 변수
+* modx : 상호 작용과 관련된 중재자 변수
+* mod2 : 선택 항목, 상호 작용에 관련된 두 번째 중재자 변수
+* plot.point : 데이터 포인트를 산점도로 표시
+* int.width : 신뢰 구간 설정
+* tab_model 기반의 결과표에 비해 시각적으로 상호작용 효과를 선의 기울기와 산점도로 표현하여 더 보기 쉽다는 것을 알 수 있다. 이외에 신뢰구간 표시, 자유롭게 사용 가능한 중재 변수 등 interact.plot 함수로 나타냈을 때 얻을 수 있는 메리트가 많았다.
