@@ -1,0 +1,273 @@
+---
+title: "과제 #5 분류(classification)"
+author: "성원호"
+date: "6/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 통신회사 고객이탈 예측
+## Logistic regression과 Naive Bayes Classifier 사용
+* 종속변수는 Churn(지난 달 이탈 여부)와 독립변수는 고객이 이용중인 서비스(ex.phone, multiple lines), 고객계정 관련 정보(ex. contract, payment method), 고객의 인구 통계학적 정보(ex.gender, age)를 사용하였다.
+
+# 데이터 수집
+```{r}
+# install.packages("Epi")
+# install.packages("klaR")
+# install.packages("e1071")
+library(Epi)
+library(dplyr)
+library(klaR)
+library(e1071)
+library(caret)
+library(gmodels)
+# https://www.kaggle.com/blastchar/telco-customer-churn 로부터 데이터를 가져옴
+telco <- read.csv("WA_Fn-UseC_-Telco-Customer-Churn.csv"); head(telco)
+
+```
+# 데이터 정제
+```{r}
+# 여자는 1 남자는 0
+telco$gender <- as.factor(ifelse(telco$gender=="Female", '1', '0'))
+
+# Yes는 1 No는 0
+telco$Partner <- as.factor(ifelse(telco$Partner=="Yes", '1', '0'))
+
+telco$Dependents <- as.factor(ifelse(telco$Dependents=="Yes", '1', '0'))
+
+telco$PhoneService <- as.factor(ifelse(telco$PhoneService=="Yes", '1', '0'))
+
+telco$OnlineSecurity <- as.factor(ifelse(telco$OnlineSecurity=="Yes", '1', '0'))
+
+telco$OnlineBackup <- as.factor(ifelse(telco$OnlineBackup=="Yes", '1', '0'))
+
+telco$DeviceProtection <- as.factor(ifelse(telco$DeviceProtection=="Yes", '1', '0'))
+
+telco$TechSupport <- as.factor(ifelse(telco$TechSupport=="Yes", '1', '0'))
+
+telco$StreamingTV <- as.factor(ifelse(telco$StreamingTV=="Yes", '1', '0'))
+
+telco$StreamingMovies <- as.factor(ifelse(telco$StreamingMovies=="Yes", '1', '0'))
+
+telco$PaperlessBilling <- as.factor(ifelse(telco$PaperlessBilling=="Yes", '1', '0'))
+
+telco$Churn <- as.factor(ifelse(telco$Churn=="Yes", '1', '0'))
+
+# 데이터 프레임 내 수치형 자료들은 따로 추출하여 numeric 형태로 변환
+num_columns <- c("tenure", "MonthlyCharges", "TotalCharges")
+telco[num_columns] <- sapply(telco[num_columns], as.numeric)
+
+# scale 함수를 이용해 표준화
+telco_int <- telco[,c("tenure", "MonthlyCharges", "TotalCharges")]
+telco_int <- data.frame(scale(telco_int))
+
+# Customer No와 수치형 자료들 제거
+telco_abs <- telco[,-c(1,6,19,20)]
+
+
+# 이진 표기로 변환이 안되는 변수들은 더미 변수화 진행
+telco_dummy_1 <- transform(telco_abs,
+                           MultipleLines_no = ifelse(MultipleLines == "No", 1, 0)) # 코드를 돌리는데 자꾸 논리값이 하나만 나오는 오류가 발생하여 소거하고 하나로만 진행했습니다
+
+telco_dummy_2 <- transform(telco_dummy_1,
+                           Pay_Mailed = ifelse(PaymentMethod == "Mailed check", 1, 0),
+                           Pay_Credit = ifelse(PaymentMethod == "Credit card (automatic)", 1, 0))
+
+telco_dummy_3 <- transform(telco_dummy_2,
+                           Contract_Month = ifelse(Contract == "Month-to-month", 1, 0),
+                           Contract_One_year = ifelse(Contract == "One year", 1, 0))
+
+telco_dummy_4 <- transform(telco_dummy_3,
+                           Service_DSL = ifelse(InternetService == "DSL", 1, 0),
+                           Service_Fiber = ifelse(InternetService == "Fiber optic", 1, 0))
+
+# 더미 변수화 이후 원 데이터 컬럼들은 제거
+rev_telco <- telco_dummy_4[,-c(6, 7, 14, 16)]
+
+# 표준화 했던 수치형 자료들과 결합
+final_telco <- cbind(rev_telco, telco_int)
+
+# 정제한 데이터들을 범주형으로 변환(논리 값이 1과 0만 존재하도록 만들었기 때문에)
+final_telco$MultipleLines_no <- as.factor(final_telco$MultipleLines_no)
+final_telco$Pay_Mailed <- as.factor(final_telco$Pay_Mailed)
+final_telco$Pay_Credit <- as.factor(final_telco$Pay_Credit)
+final_telco$Contract_Month <- as.factor(final_telco$Contract_Month)
+final_telco$Contract_One_year <- as.factor(final_telco$Contract_One_year)
+final_telco$Service_DSL <- as.factor(final_telco$Service_DSL)
+final_telco$Service_Fiber <- as.factor(final_telco$Service_Fiber)
+final_telco$SeniorCitizen <- as.factor(final_telco$SeniorCitizen)
+
+head(final_telco); str(final_telco)
+
+```
+# 로지스틱 회귀분석
+```{r}
+# 로지스틱 회귀분석에는 glm 함수가 이용 된다. glm 함수 선형적이지 않은 대상을 선형적으로 일반화 시킨 모형으로, 종속변수 및 독립변수를 차례대로 입력하고 사이에 '~' 기호를 삽입해준다.
+# 종속변수는 Churn이고, 독립변수가 gender ~ TotalCharges 까지이며, family = binomial로 이진형태로 지정한 후 summary로 분석을 진행
+logi_1 <- glm(Churn ~ gender+SeniorCitizen+Partner+Dependents+PhoneService+OnlineSecurity+OnlineBackup+DeviceProtection+TechSupport+StreamingTV+StreamingMovies+PaperlessBilling+MultipleLines_no+Pay_Mailed+Pay_Credit+Contract_Month+Contract_One_year+Service_DSL+Service_Fiber+tenure+MonthlyCharges+TotalCharges, family = binomial, data = final_telco) ; summary(logi_1)
+
+# 회귀계수 : coef , Odd ratio : exp
+coef(logi_1) ; exp(coef(logi_1))
+```
+* 분석 결과 모든 독립변수가 유의한 값을 가지지 않았기 때문에 회귀모형을 재정의할 필요가 있었음.
+
+```{r}
+# 유의하지 않은 변수들을 누락하고 다시 로지스틱 회귀모형을 정의하기로 함(후진선택법 사용)
+logi_2 <- step(logi_1, direction = "backward") ; summary(logi_2) 
+
+coef(logi_2) ; exp(coef(logi_2))
+
+anova(logi_1, logi_2, test = "LRT")
+```
+* 후진선택법을 사용해 유의한 변수만 걸러내도록 하였으며 로지스틱 회귀분석의 결과 해석은 독립변수가 1unit 증가할 때 관심 사건의 log-odd가 증가하는 것이므로 계수를 지수화(Odd ratio)한다. 따라서 각 독립변수들이 1 증가할 때마다 odd ratio가 e^coeff 배 증가한다고 해석해야 한다.
+* 따라서 예로 OnlineSecurity(온라인 보안 서비스)의 고객이  1 늘어날 때마다 이탈 확률이 0.72095294배로 줄어들며, Pay_mailed(메일로 결제)를 하는 고객이 1 늘어날 때마다 이탈 확률이 0.76083612배로 줄어든다고 해석한다. 
+* LRT(Likelihood-ratio test)는 두 모델 간의 적합도를 비교하기 위해 Proposed model이 Null model보다 몇 배나 발생가능성이 높은지(LR)을 찾아 이를 통해 p값을 계산해 유의성을 판단하는 것으로, 기존 모델과 후진선택으로 만든 모델의 비교 결과 P 값은 0.05보다 큰 0.8372가 나왔기 때문에 유의성이 없다고 판단된다.
+
+```{r}
+logi_3 <- glm(Churn ~ SeniorCitizen+OnlineSecurity+TechSupport+StreamingTV+StreamingMovies+PaperlessBilling+MultipleLines_no+Pay_Mailed+Pay_Credit+Contract_Month+Contract_One_year+Service_DSL+tenure+MonthlyCharges+TotalCharges, family = binomial, data = final_telco) ; summary(logi_1)
+
+coef(logi_3) ; exp(coef(logi_3))
+
+anova(logi_1, logi_3, test = "LRT")
+```
+* 그 이유를 다시 summary(logi_2) 에서 찾아본 결과 유의도가 0.05를 넘어가는 변수가 후진선택법에서 지워지지 않았고 회귀 계수가 비정상적으로 나오는 변수가 출력되는 것을 확인할 수 있었다. 따라서 이들을 소거한 후 다시 logi_3에 대입하여 LR-Test를 진행한 결과 유의미한 값을 가지는 결과를 도출하였다.
+
+# ROC 커브를 통해 로지스틱 회귀모델의 성능을 평가
+```{r}
+# ROC(Receiver Operating Characteristic) : 이진 분류기의 유용성을 검증하는 방식 중 하나
+graph_1 <- ROC(form = Churn ~ SeniorCitizen + OnlineSecurity + TechSupport + 
+    StreamingTV + StreamingMovies + PaperlessBilling + MultipleLines_no + 
+    Pay_Mailed + Pay_Credit + Contract_Month + Contract_One_year + 
+    Service_DSL + tenure + MonthlyCharges + TotalCharges, data =final_telco, plot = "ROC")
+
+head(graph_1$res); tail(graph_1$res)
+
+graph_1$res[round(graph_1$res$lr.eta,3) == 0.001,]
+graph_1$AUC
+graph_1$lr
+```
+* ROC 커브는 민감도(Sensitivity)와 특이도(Specificity) 간의 관계를 2차원 상의 표현한 것으로 로지스틱 회귀모델의 성능을 평가한다. 해당 그래프를 통해 민감도는 74.4%, 특이도는 78.3%이다. 또한 ROC를 통해 성능을 평가할 때 AUC(Area under the curve)가 중요한 지표가 되는데 1이면 완벽한 모델, 0.5면 random guessing한 모델이라고 한다. AUC가 평균적으로 0.9 이상이면 우수한 모형이라고 하나 해당 그래프에서는 0.842로 그 아래인 점을 확인할 수 있다.
+
+* 또한 최적의 절사점을 보면 lr.eta 값이 0.330으로 나와있는 것을 학인할 수 있는데, 이 값은 일반화 회귀모형에서 도출된 것이다.
+
+```{r}
+# 예측 값과 실제 관찰값을 비교하는 과정
+# 데이터 수가 몇천개 단위이므로 출력 과정은 생략
+# logi_3$data 
+# logi_3$y
+# logi_3$linear.predictors
+# cbind(ifelse(1/(1+exp(-logi_3$linear.predictors))>0.001,1,0), logi_3$y)
+
+table(ifelse(1/(1+exp(logi_3$linear.predictors))>0.001,1,0),
+      logi_3$y)
+```
+* 로지스틱 회귀분석을 통해 예측한 값들과 실제 관찰값을 비교하여 다른 정확도 지표도 계산이 가능하다.
+* logi_2 linear.predictors 에서 값(z) 안에서 p 값을 계산했으며, Cut-off value인 0.001을 기준으로 0과 1을 구분하여 실제 관찰값인 logi_2 y 와 비교할 수 있다.
+
+# 나이브 베이즈 분석
+```{r}
+# 가설 : 독립변수(고객의 이용 중인 서비스, 계정 관련 정보, 인구 통계학적 정보)에 따라 고객 이탈 여부(종속변수)가 다를 것이다.
+
+# 데이터는 오직 이진 형태(1,0)로만 사용할 것이기 때문에 수치형 독립변수는 제외
+naive_telco <- final_telco[,-c(21,22,23)];head(naive_telco)
+
+# 이미 label로 전환할 모든 변수가 factor 형이므로 factor로 변환하는 단계 생략
+
+# 학습 데이터와 평가 데이터를 분할해야함(library는 e1071을 사용)
+# train 데이터로 나이브베이즈 모델을 훈련시킨다.
+# 학습 데이터는 7:3으로 나눔
+bal <- sample(2, nrow(naive_telco), replace = T, prob = c(0.7,0.3))
+train_telco <- naive_telco[bal == 1, ] 
+test_telco <- naive_telco[bal == 2, ]  
+# 테이블 개수가 가르칠 때마다 바뀌는 것을 알 수 있다. 그러나 데이터의 table 개수보다는 비율을 비교해야 하므로 상관 없음
+nrow(train_telco); nrow(test_telco) 
+
+# 전체, 학습 데이터의 Churn 비율 확인
+# 두 데이터 모델 전부 비율이 동일함을 확인할 수 있음
+print(table(naive_telco$Churn)); print(table(train_telco$Churn))
+```
+* 결과 값에 따라 학습 데이터가 출력되는 것을 확인할 수 있으며 또한, 전체 데이터와 학습 데이터의 비율을 비교한 결과 유사하다는 것을 알 수 있었다.
+
+```{r}
+naive_1 <- naiveBayes(Churn~., data = train_telco)
+naive_1
+```
+* 위 결과에서 A-priori probabilities는 사전 확률을 나타내며, Conditional probabilities에서는 예측변수들이 범주형일 경우 P(예측변수|Class)를 나타내지만 수치형일 경우 평균과 표준편차를 나타낸다. 그러나 수치형 변수들은 제외하고 분석을 진행했기 때문에 전자의 경우만 나오는 것을 알 수 있다.
+
+```{r}
+# 예측 모델을 통해 정확도 측정
+test_telco$naive_1 <- predict(naive_1, newdata = test_telco)
+
+# 모형 평가
+temp <- table(test_telco$naive_1, test_telco$Churn, dnn = c("predicted", "actual"))
+temp
+```
+* 훈련된 모델을 통해 시험 데이터 분류의 예측치를 구하려면 predict() 함수를 사용하면 된다. 여기서 단순 예측값을 구하려면 type 인자에 아무 것도 설정하지 않지만, 사후확률을 구하려면 type = "raw"로 설정해주면 된다. 또한 table 함수를 이용해 모형에 대한 평가를 진행해보았다.
+
+```{r}
+# 모델의 성능 평가
+result_summary <- data.frame( modle = "NaiveBayes",
+                      accuracy = (temp[1,1] + temp[2,2]) / sum(temp),
+                      precision = temp[2,2] / (temp[2,1] + temp[2,2]),
+                      recall = temp[2,2] / (temp[1,2] + temp[2,2]))
+result_summary <- result_summary %>%
+  mutate(F1 = 2 * precision * recall /(precision + recall))
+
+result_summary
+```
+* 훈련 단계가 끝난 후 테스트 단계에서 모델의 성능 평가가 이루어진다. accuracy(정확도), precision(정밀도), recall(재현율) 등의 지표를 통해 classifier의 모델 성능을 측정할 수 있다. 여기서 정밀도는 분류 모델이 1로 예측했는데, 실제로 1인지를 살펴본다. 재현율은 실제로 참인 값에 모델이 참이라고 예측한 것의 비율을 나타낸다. 정확도의 경우 두 지표 상에서 참인 값을 참이라고 옳게 예측한 경우에 대한 비율을 나타낸다. 해당 결과에서는 0.76임을 알 수 있다. F1 값은 Precision과 Recall의 조화평균이다. 수식은 mutate 이하이다. 
+
+```{r}
+# confusionMatrix를 활용한 정확도 측정
+train_class <- predict(naive_1, newdata = train_telco)
+confusionMatrix(train_class, train_telco$Churn)
+```
+* confusionMatrix는 혼동행렬 혹은 정오표로 불리고 분류 모델의 학습 성능 평가를 위한 행렬이다.  앞선 단계에서 활용했던 모델 평가와 같이 예측값과 데이터의 실제 값의 발생 빈도를 나열한 것이다. Accuracy가 마찬가지로 나타나며, 추가로 95%의 신뢰구간이 나타난다. 이외에 Sensivity, Specificity 등 다양한 지표가 존재한다다.
+
+```{r}
+CrossTable(train_class, train_telco$Churn,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('predicted', 'actual'))
+```
+* gmodels 라이브러리 내 CrossTable 함수를 통해 표 형태로 정리하였다.
+* 위 함수로도 모델 성능을 평가할 수 있다.
+
+# 라플라스 추정량을 사용하여 모델 성능 개선
+```{r}
+naive_2 <- naiveBayes(Churn~., data = train_telco, laplace = 1)
+naive_2
+```
+* 나이브 베이즈 모델을 시행할 때 변수의 양이 많아지면 계산의 어려움이 생긴다. 예를 들어 변수가 15개고 값이 2개만 존재하더라도, 2의 15제곱만큼의 값이 나오기 때문에 비어있는 값을 사용할 때 그냥 사용하면 확률이 0이 되는 경우가 발생한다. 따라서 이를 피하고자 라플라스를 사용한다. 
+
+```{r}
+test_telco$naive_2 <- predict(naive_2, newdata = test_telco)
+
+temp <- table(test_telco$naive_2, test_telco$Churn, dnn = c("predicted", "actual"))
+
+result_temp <- data.frame(modle = "NaiveBayes+LPLC",
+                     accuracy = (temp[1,1] + temp[2,2]) / sum(temp),
+                      precision = temp[2,2] / (temp[2,1] + temp[2,2]),
+                      recall = temp[2,2] / (temp[1,2] + temp[2,2]))
+
+result_temp <- result_temp %>%
+  mutate(F1 = 2 * precision * recall / (precision + recall))
+
+result_sum <- bind_rows(result_summary, result_temp)
+result_sum
+```
+* 나이브베이즈만 사용했을 때와 나이브베이즈에 라플라스 옵션을 추가했을 때를 비교한 것이다. 밑에서 다시 설명하겠으나, 결론적으로 나이브 베이즈만 사용했을 때는 전체 데이터 중에 오분류한 값이 존재했다. 그렇게 많지는 않으나 실제 해당 모델이 서비스에 이용된다면 오분류한 값을 줄이는 것이 중요하기 때문에 더 높은 정확도를 갖게 만들어야 한다. 나이브베이즈만 사용할 때와 라플라스를 함께 사용할 때의 값을 비교해보면 Accuracy(정확도)가 라플라스를 사용했을 때가 더 높다는 것을 알 수 있다. 
+
+```{r}
+train_class_2 <- predict(naive_2, newdata = train_telco)
+confusionMatrix(train_class_2, train_telco$Churn)
+```
+* 라플라스를 사용하지 않고 만든 confusionMatrix와 비교해보면 알겠지만 표 내의 값이 조금 상이하다는 것을 알 수 있다. 이는 라플라스 상수를 추가했을 때 더 높은 정확도를 갖는 모델로 만들 수 있다는 결론이 된다.
+
+```{r}
+CrossTable(train_class_2, train_telco$Churn,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('predicted', 'actual'))
+```
