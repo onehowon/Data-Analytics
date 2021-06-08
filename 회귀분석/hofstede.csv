@@ -1,0 +1,121 @@
+id,title,slug,pdi,idv,mas,uai,lto,ind,ivr,Continent
+545,Albania*,albania,90,20,80,70,61,15,15,Europe
+7062,Algeria*,algeria,80,35,35,70,26,32,32,Africa
+546,Angola*,angola,83,18,20,60,15,83,83,Africa
+460,Argentina,argentina,49,46,56,86,20,62,62,South America
+7067,Armenia*,armenia,85,22,50,88,61,25,25,Asia
+459,Australia,australia,38,90,61,51,21,71,71,Australia
+461,Austria,austria,11,55,79,70,60,63,63,Europe
+7074,Azerbaijan*,azerbaijan,85,22,50,88,61,22,22,Asia
+519,Bangladesh,bangladesh,80,20,55,60,47,20,20,Asia
+7077,Belarus*,belarus,95,25,20,95,81,15,15,Europe
+462,Belgium,belgium,65,75,54,94,82,57,57,Europe
+463,Bhutan*,bhutan,94,52,32,28,-1,-1,-1,Asia
+7027,Bolivia*,"bolivia, plurinational state of",78,10,42,87,25,46,46,South America
+7086,Bosnia and Herzegovina*,bosnia and herzegovina,90,22,48,87,70,44,44,Europe
+465,Brazil,brazil,69,38,49,76,44,59,59,South America
+466,Bulgaria,bulgaria,70,30,40,85,69,16,16,Europe
+548,Burkina Faso*,burkina-faso,70,15,50,55,27,18,18,Africa
+467,Canada,canada,39,80,52,48,36,68,68,North America
+547,Cape Verde*,cape-verde,75,20,15,40,12,83,83,Africa
+468,Chile,chile,63,23,28,86,31,68,68,South America
+469,China,china,80,20,66,30,87,24,24,Asia
+470,Colombia,colombia,67,13,64,80,13,83,83,South America
+471,Costa Rica,costa rica,35,15,21,86,-1,-1,-1,North America
+472,Croatia,croatia,73,33,40,80,58,33,33,Europe
+474,Czech Republic,czech republic,57,58,57,74,70,29,29,Europe
+473,Denmark,denmark,18,74,16,23,35,70,70,Europe
+549,Dominican Republic*,dominican republic,65,30,65,45,13,54,54,North America
+475,Ecuador,ecuador,78,8,63,67,-1,-1,-1,South America
+456,Egypt*,egypt,70,25,45,80,7,4,4,Africa
+477,El Salvador,"el salvador
+",66,19,40,94,20,89,89,North America
+478,Estonia,estonia,40,60,30,60,82,16,16,Europe
+457,Ethiopia*,ethiopia,70,20,65,55,-1,46,46,Africa
+550,Fiji*,fiji,78,14,46,48,-1,-1,-1,Oceania
+479,Finland,finland,33,63,26,59,38,57,57,Europe
+480,France,france,68,71,43,86,63,48,48,Europe
+7089,Georgia*,georgia,65,41,55,85,38,32,32,Asia
+481,Germany,germany,35,67,66,65,83,40,40,Europe
+482,Ghana*,ghana,80,15,40,65,4,72,72,Africa
+483,Greece,greece,60,35,57,100,45,50,50,Europe
+484,Guatemala,guatemala,95,6,37,98,-1,-1,-1,North America
+551,Honduras*,honduras,80,20,40,50,-1,-1,-1,North America
+485,Hong Kong,hong kong (china),68,25,57,29,61,17,17,Asia
+520,Hungary*,hungary,46,80,88,82,58,31,31,Europe
+552,Iceland*,iceland,30,60,10,50,28,67,67,Europe
+541,India,india,77,48,56,40,51,26,26,Asia
+486,Indonesia,indonesia,78,14,46,48,62,38,38,Asia
+488,Iran,"iran, islamic republic of",58,41,43,59,14,40,40,Asia
+521,Iraq*,iraq,95,30,70,85,25,17,17,Asia
+489,Ireland,ireland,28,70,68,35,24,65,65,Europe
+490,Israel,israel,13,54,47,81,38,-1,-1,Asia
+540,Italy,italy,50,76,70,75,61,30,30,Europe
+522,Jamaica,jamaica,45,39,68,13,-1,-1,-1,North America
+491,Japan,japan,54,46,95,92,88,42,42,Asia
+553,Jordan*,jordan,70,30,45,65,16,43,43,Asia
+7100,Kazakhstan*,kazakhstan,88,20,50,88,85,22,22,Asia
+554,Kenya*,kenya,70,25,60,50,-1,-1,-1,Africa
+523,Kuwait*,kuwait,90,25,40,80,-1,-1,-1,Asia
+543,Latvia,latvia,44,70,9,63,69,13,13,Europe
+524,Lebanon*,lebanon,75,40,65,50,14,25,25,Asia
+542,Libya,libya,80,38,52,68,23,34,34,Africa
+544,Lithuania,lithuania,42,60,19,65,82,16,16,Europe
+493,Luxembourg,luxembourg,40,60,50,70,64,56,56,Europe
+555,Malawi*,malawi,70,30,40,50,-1,-1,-1,Africa
+494,Malaysia,malaysia,100,26,50,36,41,57,57,Asia
+525,Malta,malta,56,59,47,96,47,66,66,Europe
+495,Mexico,mexico,81,30,69,82,24,97,97,North America
+7102,Moldova*,"moldova, republic of",90,27,39,95,71,19,19,Asia
+7132,Montenegro*,montenegro,88,24,48,90,75,20,20,Europe
+496,Morocco,morocco,70,46,53,68,14,25,25,Africa
+556,Mozambique*,mozambique,85,15,38,44,11,80,80,Africa
+464,Namibia*,namibia,65,30,40,45,35,-1,-1,Africa
+557,Nepal*,nepal,65,30,40,40,-1,-1,-1,Asia
+487,Netherlands,netherlands,38,80,14,53,67,68,68,Europe
+532,New Zealand,new zealand,22,79,58,49,33,75,75,Oceania
+526,Nigeria*,nigeria,80,30,60,55,13,84,84,Africa
+7113,North Macedonia*,tfyr macedonia,90,22,45,87,62,35,35,Europe
+497,Norway,norway,31,69,8,50,35,55,55,Europe
+498,Pakistan,pakistan,55,14,50,70,50,0,0,Asia
+499,Panama,panama,95,11,44,86,-1,-1,-1,North America
+7034,Paraguay*,paraguay,70,12,40,85,20,56,56,South America
+500,Peru,peru,64,16,42,87,25,46,46,South America
+501,Philippines,philippines,94,32,64,44,27,42,42,Asia
+502,Poland,poland,68,60,64,93,38,29,29,Europe
+503,Portugal,portugal,63,27,31,99,28,33,33,Europe
+561,Puerto Rico*,puerto-rico,68,27,56,38,0,90,90,North America
+3873,Qatar*,qatar,93,25,55,80,,,,Asia
+504,Romania,romania,90,30,42,90,52,20,20,Europe
+505,Russia,russia,93,39,36,95,81,20,20,Asia
+7147,São Tomé and Príncipe*,sao-tome-and-principe,75,37,24,70,32,41,41,Africa
+531,Saudi Arabia*,saudi arabia,95,25,60,80,36,52,52,Asia
+558,Senegal*,senegal,70,25,45,55,25,-1,-1,Africa
+534,Serbia,serbia,86,25,43,92,52,28,28,Europe
+527,Sierra Leone*,sierra-leone,70,20,40,50,-1,-1,-1,Africa
+506,Singapore,singapore,74,20,48,8,72,46,46,Asia
+507,Slovakia,slovakia,100,52,100,51,77,28,28,Europe
+535,Slovenia,slovenia,71,27,19,88,49,48,48,Europe
+528,South Africa,south africa,49,65,63,49,34,63,63,Africa
+492,South Korea,"korea, republic of",60,18,39,85,100,29,29,Asia
+508,Spain,spain,57,51,42,86,48,44,44,Europe
+559,Sri Lanka*,sri lanka,80,35,10,45,45,-1,-1,Asia
+509,Suriname,suriname,85,47,37,92,-1,-1,-1,South America
+510,Sweden,sweden,31,71,5,29,53,78,78,Europe
+511,Switzerland,switzerland,34,68,70,58,74,66,66,Europe
+560,Syria*,syria,80,35,52,60,30,-1,-1,Asia
+536,Taiwan,taiwan,58,17,45,69,93,49,49,Asia
+529,Tanzania*,"tanzania, united republic of",70,25,40,50,34,38,38,Africa
+512,Thailand,thailand,64,20,34,64,32,45,45,Asia
+538,Trinidad and Tobago,"trinidad and tobago
+",47,16,58,55,13,80,80,South America
+7149,Tunisia*,tunisia,70,40,40,75,,,,Africa
+513,Turkey,turkey,66,37,45,85,46,49,49,Asia
+533,Ukraine*,ukraine,92,25,27,95,86,14,14,Asia
+518,United Arab Emirates*,united arab emirates,90,25,50,80,-1,-1,-1,Asia
+514,United Kingdom,united kingdom,35,89,66,35,51,69,69,Europe
+515,United States,united states of america,40,91,62,46,26,68,68,North America
+539,Uruguay,uruguay,61,36,38,98,26,53,53,South America
+516,Venezuela,venezuela,81,12,73,76,16,100,100,South America
+537,Vietnam,viet nam,70,20,40,30,57,35,35,Asia
+530,Zambia*,zambia,60,35,40,50,30,42,42,Africa
