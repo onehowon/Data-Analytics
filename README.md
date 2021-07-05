@@ -1,2 +1,2 @@
 # Data-Analytics
-Using R
+데이터 분석 공부방입니다.
